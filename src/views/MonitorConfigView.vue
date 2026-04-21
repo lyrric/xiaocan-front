@@ -1,0 +1,1308 @@
+<script setup lang="ts">
+import { ref, reactive, onMounted, onUnmounted, inject } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { FormInstance } from 'element-plus'
+import api from '../api'
+
+// 注入认证状态
+const authState = inject<{
+  isAuthenticated: { value: boolean }
+  setAuthenticated: () => void
+  waitForAuth: () => Promise<void>
+}>('authState')!
+
+const configList = ref<any[]>([])
+const loading = ref(false)
+const showDetail = ref(false)
+const currentDetail = ref<any>(null)
+
+// 移动端检测
+const isMobile = ref(false)
+function checkMobile() {
+  isMobile.value = window.innerWidth <= 768
+}
+
+// 运行记录相关
+const historyDialogVisible = ref(false)
+const historyLoading = ref(false)
+const historyList = ref<any[]>([])
+const historyConfigId = ref<number | null>(null)
+const historyConfigName = ref('')
+const historyPagination = reactive({
+  pageNum: 1,
+  pageSize: 10,
+  total: 0,
+})
+
+// 对话框相关
+const dialogVisible = ref(false)
+const isEdit = ref(false)
+const editingId = ref<number | null>(null)
+const currentEditConfig = ref<any>(null)
+const submitLoading = ref(false)
+const locationList = ref<any[]>([])
+const formRef = ref<FormInstance>()
+
+const weekOptions = [
+  { label: '周一', value: '1' },
+  { label: '周二', value: '2' },
+  { label: '周三', value: '3' },
+  { label: '周四', value: '4' },
+  { label: '周五', value: '5' },
+  { label: '周六', value: '6' },
+  { label: '周日', value: '7' },
+]
+
+const form = reactive({
+  locationId: null as number | null,
+  startHour: 8,
+  endHour: 22,
+  weeks: [] as string[],
+  minimumPayExtNotifyConfig: {
+    minimumPay: 1,
+  },
+})
+
+const formRules = {
+  locationId: [{ required: true, message: '请选择位置', trigger: 'change' }],
+  startHour: [{ required: true, message: '请输入开始时间', trigger: 'blur' }],
+  endHour: [{ required: true, message: '请输入结束时间', trigger: 'blur' }],
+  weeks: [
+    {
+      required: true,
+      validator: (_rule: any, value: string[], callback: any) => {
+        if (!value || value.length === 0) {
+          callback(new Error('请至少选择一天'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'change',
+    },
+  ],
+  'minimumPayExtNotifyConfig.minimumPay': [
+    { required: true, message: '请输入最小实付金额', trigger: 'blur' },
+  ],
+}
+
+function getTypeText(type: string) {
+  switch (type) {
+    case 'STORE_ACTIVITY':
+      return '指定门店'
+    case 'MINIMUM_PAY':
+      return '最小实付'
+    default:
+      return '未知类型'
+  }
+}
+
+function getTypeTagType(type: string) {
+  switch (type) {
+    case 'STORE_ACTIVITY':
+      return '' as const
+    case 'MINIMUM_PAY':
+      return 'success' as const
+    default:
+      return 'info' as const
+  }
+}
+
+function getLocationName(locationId: number) {
+  const loc = locationList.value.find((l: any) => l.id === locationId)
+  return loc ? loc.name : '未知位置'
+}
+
+function formatWeeks(weeks: string) {
+  if (!weeks) return ''
+  const weekMap: Record<string, string> = {
+    '1': '周一',
+    '2': '周二',
+    '3': '周三',
+    '4': '周四',
+    '5': '周五',
+    '6': '周六',
+    '7': '周日',
+  }
+  return weeks
+    .split(',')
+    .map((w) => weekMap[w.trim()] || w)
+    .join(', ')
+}
+
+function getPlatformNameById(type: number) {
+  switch (type) {
+    case 1:
+      return '美团'
+    case 2:
+      return '饿了么'
+    case 3:
+      return '京东'
+    default:
+      return '未知平台'
+  }
+}
+
+function getRebateConditionText(condition: number) {
+  switch (condition) {
+    case 99:
+      return '无需评价'
+    case 2:
+      return '图文评价'
+    default:
+      return '未知条件'
+  }
+}
+
+async function loadConfigList() {
+  loading.value = true
+  try {
+    const response = await api.get('/api/notify/config/list')
+    if (response.data.success) {
+      configList.value = response.data.data || []
+    } else {
+      ElMessage.error(response.data.msg || '获取监控配置列表失败')
+    }
+  } catch {
+    ElMessage.error('获取监控配置列表失败，请检查网络连接')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadLocations() {
+  try {
+    const response = await api.get('/api/location')
+    if (response.data.success) {
+      locationList.value = response.data.data || []
+    } else {
+      ElMessage.error(response.data.msg || '获取位置列表失败')
+    }
+  } catch {
+    ElMessage.error('获取位置列表失败，请检查网络连接')
+  }
+}
+
+function resetForm() {
+  formRef.value?.resetFields()
+  form.locationId = null
+  form.startHour = 8
+  form.endHour = 22
+  form.weeks = []
+  form.minimumPayExtNotifyConfig = { minimumPay: 1 }
+  isEdit.value = false
+  editingId.value = null
+  currentEditConfig.value = null
+}
+
+function showAddDialog() {
+  resetForm()
+  isEdit.value = false
+  dialogVisible.value = true
+}
+
+function showEditDialog(config: any) {
+  resetForm()
+  isEdit.value = true
+  editingId.value = config.id
+  currentEditConfig.value = config
+  form.locationId = config.locationId
+  form.startHour = config.startHour
+  form.endHour = config.endHour
+  form.weeks = config.weeks ? config.weeks.split(',') : []
+  if (config.type === 'MINIMUM_PAY' && config.minimumPayExtNotifyConfig) {
+    form.minimumPayExtNotifyConfig.minimumPay = config.minimumPayExtNotifyConfig.minimumPay
+  }
+  dialogVisible.value = true
+}
+
+function submitForm() {
+  formRef.value?.validate(async (valid: boolean) => {
+    if (valid) {
+      submitLoading.value = true
+      try {
+        const requestData: any = {
+          locationId: form.locationId,
+          startHour: form.startHour,
+          endHour: form.endHour,
+          weeks: form.weeks.join(','),
+        }
+
+        if (isEdit.value) {
+          requestData.id = editingId.value
+          requestData.type = currentEditConfig.value.type
+          if (currentEditConfig.value.type === 'MINIMUM_PAY') {
+            requestData.minimumPayExtNotifyConfig = form.minimumPayExtNotifyConfig
+          }
+          if (currentEditConfig.value.type === 'STORE_ACTIVITY') {
+            requestData.storeExtNotifyConfig = currentEditConfig.value.storeExtNotifyConfig
+          }
+        } else {
+          requestData.type = 'MINIMUM_PAY'
+          requestData.minimumPayExtNotifyConfig = form.minimumPayExtNotifyConfig
+        }
+
+        const response = await api.post('/api/notify/config', requestData)
+        if (response.data.success) {
+          ElMessage.success(isEdit.value ? '监控配置更新成功' : '监控配置保存成功')
+          dialogVisible.value = false
+          await loadConfigList()
+        } else {
+          ElMessage.error(response.data.msg || '保存监控配置失败')
+        }
+      } catch {
+        ElMessage.error('保存监控配置失败，请检查网络连接')
+      } finally {
+        submitLoading.value = false
+      }
+    }
+  })
+}
+
+function deleteConfig(configId: number) {
+  ElMessageBox.confirm('确定要删除这个监控配置吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning',
+  })
+    .then(async () => {
+      loading.value = true
+      try {
+        const response = await api.delete(`/api/notify/config/${configId}`)
+        if (response.data.success) {
+          ElMessage.success('监控配置删除成功')
+          await loadConfigList()
+        } else {
+          ElMessage.error(response.data.msg || '监控配置删除失败')
+        }
+      } catch {
+        ElMessage.error('删除监控配置失败，请检查网络连接')
+      } finally {
+        loading.value = false
+      }
+    })
+    .catch(() => {
+      ElMessage.info('已取消删除')
+    })
+}
+
+async function showExecHistory(config: any) {
+  historyConfigId.value = config.id
+  historyConfigName.value = getLocationName(config.locationId)
+  historyPagination.pageNum = 1
+  historyPagination.total = 0
+  historyList.value = []
+  historyDialogVisible.value = true
+  await loadExecHistory()
+}
+
+async function loadExecHistory() {
+  historyLoading.value = true
+  try {
+    const response = await api.post('/api/task-exec-history/page', {
+      notifyConfigId: historyConfigId.value,
+      pageNum: historyPagination.pageNum,
+      pageSize: historyPagination.pageSize,
+    })
+    if (response.data.success) {
+      const pageData = response.data.data
+      historyList.value = pageData?.records || []
+      historyPagination.total = pageData?.total || 0
+    } else {
+      ElMessage.error(response.data.msg || '获取运行记录失败')
+    }
+  } catch {
+    ElMessage.error('获取运行记录失败，请检查网络连接')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+function handleHistoryPageChange(page: number) {
+  historyPagination.pageNum = page
+  loadExecHistory()
+}
+
+function formatDateTime(dateStr: string) {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  const y = date.getFullYear()
+  const m = (date.getMonth() + 1).toString().padStart(2, '0')
+  const d = date.getDate().toString().padStart(2, '0')
+  const h = date.getHours().toString().padStart(2, '0')
+  const min = date.getMinutes().toString().padStart(2, '0')
+  const s = date.getSeconds().toString().padStart(2, '0')
+  return `${y}-${m}-${d} ${h}:${min}:${s}`
+}
+
+function viewDetail(config: any) {
+  currentDetail.value = config
+  showDetail.value = true
+}
+
+function backToList() {
+  showDetail.value = false
+  currentDetail.value = null
+}
+
+function refreshList() {
+  loadConfigList()
+}
+
+onMounted(async () => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+  await authState?.waitForAuth()
+  loadConfigList()
+  loadLocations()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+})
+</script>
+
+<template>
+  <div>
+    <!-- 配置列表 -->
+    <el-card
+      v-if="!showDetail"
+      class="mt-4"
+      style="border-radius: 12px; border: none; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05)"
+      v-loading="loading"
+    >
+      <template #header>
+        <div class="card-header">
+          <span>监控配置管理</span>
+          <div style="display: flex; gap: 10px">
+            <el-button class="add-address-btn" @click="showAddDialog"> 新增配置 </el-button>
+            <el-button class="add-address-btn" @click="refreshList" :disabled="loading">
+              刷新列表
+            </el-button>
+          </div>
+        </div>
+      </template>
+
+      <div v-if="configList.length === 0" class="empty-state">
+        <el-empty description="暂无监控配置">
+          <el-button class="add-address-btn" @click="refreshList"> 刷新列表 </el-button>
+        </el-empty>
+      </div>
+
+      <div v-else class="config-grid mt-4">
+        <el-card
+          v-for="(config, index) in configList"
+          :key="config.id"
+          class="address-card"
+          :style="{ animationDelay: index * 0.1 + 's' }"
+        >
+          <div>
+            <div class="address-header">
+              <div class="address-name">{{ getLocationName(config.locationId) }}</div>
+              <el-tag :type="getTypeTagType(config.type)" size="small" style="margin-left: auto">
+                {{ getTypeText(config.type) }}
+              </el-tag>
+            </div>
+
+            <div class="notify-info">
+              <p class="info-item">
+                <span>运行时间：{{ config.startHour }}:00 - {{ config.endHour }}:00</span>
+              </p>
+              <p class="info-item">
+                <span>运行星期：{{ formatWeeks(config.weeks) }}</span>
+              </p>
+              <p
+                v-if="config.type === 'MINIMUM_PAY' && config.minimumPayExtNotifyConfig"
+                class="info-item"
+              >
+                <span
+                  >最小实付：{{ config.minimumPayExtNotifyConfig.minimumPay }}元</span
+                >
+              </p>
+              <template
+                v-if="
+                  config.type === 'STORE_ACTIVITY' &&
+                  config.storeExtNotifyConfig?.storeInfo
+                "
+              >
+                <p class="info-item">
+                  <span
+                    >门店：{{ config.storeExtNotifyConfig.storeInfo.name }}（{{ getPlatformNameById(config.storeExtNotifyConfig.storeInfo.type) }}）</span
+                  >
+                </p>
+                <p class="info-item">
+                  <span>距离：{{ config.storeExtNotifyConfig.storeInfo.distance }}</span>
+                </p>
+                <p class="info-item">
+                  <span
+                    >满返：满{{ config.storeExtNotifyConfig.storeInfo.price }}返{{ config.storeExtNotifyConfig.storeInfo.rebatePrice }}</span
+                  >
+                </p>
+              </template>
+            </div>
+
+            <div class="operation-buttons">
+              <el-button
+                size="medium"
+                class="history-btn"
+                @click="showExecHistory(config)"
+                :disabled="loading"
+              >
+                运行记录
+              </el-button>
+              <el-button
+                size="medium"
+                class="edit-btn"
+                @click="viewDetail(config)"
+                :disabled="loading"
+              >
+                查看详情
+              </el-button>
+              <el-button
+                size="medium"
+                class="edit-btn"
+                @click="showEditDialog(config)"
+                :disabled="loading"
+              >
+                编辑
+              </el-button>
+              <el-button
+                size="medium"
+                class="delete-btn"
+                @click="deleteConfig(config.id)"
+                :disabled="loading"
+              >
+                删除
+              </el-button>
+            </div>
+          </div>
+        </el-card>
+      </div>
+    </el-card>
+
+    <!-- 详情视图 -->
+    <el-card
+      v-if="showDetail"
+      class="mt-4"
+      style="border-radius: 12px; border: none; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05)"
+    >
+      <template #header>
+        <div class="card-header">
+          <span>监控配置详情</span>
+          <el-button type="primary" link @click="backToList"> 返回列表 </el-button>
+        </div>
+      </template>
+
+      <div v-if="currentDetail" class="detail-content">
+        <div class="detail-section">
+          <h3>基本信息</h3>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>配置ID：</label>
+              <span>{{ currentDetail.id }}</span>
+            </div>
+            <div class="detail-item">
+              <label>类型：</label>
+              <span>{{ getTypeText(currentDetail.type) }}</span>
+            </div>
+            <div class="detail-item">
+              <label>位置：</label>
+              <span>{{ getLocationName(currentDetail.locationId) }}</span>
+            </div>
+            <div class="detail-item">
+              <label>运行时间：</label>
+              <span>{{ currentDetail.startHour }}:00 - {{ currentDetail.endHour }}:00</span>
+            </div>
+            <div class="detail-item">
+              <label>运行星期：</label>
+              <span>{{ formatWeeks(currentDetail.weeks) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="detail-section"
+          v-if="
+            currentDetail.type === 'STORE_ACTIVITY' &&
+            currentDetail.storeExtNotifyConfig?.storeInfo
+          "
+        >
+          <h3>门店配置</h3>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>门店名称：</label>
+              <span>{{ currentDetail.storeExtNotifyConfig.storeInfo.name }}</span>
+            </div>
+            <div class="detail-item">
+              <label>门店ID：</label>
+              <span>{{ currentDetail.storeExtNotifyConfig.storeInfo.storeId }}</span>
+            </div>
+            <div class="detail-item">
+              <label>门店平台：</label>
+              <span>{{
+                getPlatformNameById(currentDetail.storeExtNotifyConfig.storeInfo.type)
+              }}</span>
+            </div>
+            <div class="detail-item">
+              <label>距离：</label>
+              <span>{{ currentDetail.storeExtNotifyConfig.storeInfo.distance }}</span>
+            </div>
+            <div class="detail-item">
+              <label>满返金额：</label>
+              <span
+                >满{{ currentDetail.storeExtNotifyConfig.storeInfo.price }}返{{
+                  currentDetail.storeExtNotifyConfig.storeInfo.rebatePrice
+                }}</span
+              >
+            </div>
+            <div class="detail-item">
+              <label>好评条件：</label>
+              <span>{{
+                getRebateConditionText(
+                  currentDetail.storeExtNotifyConfig.storeInfo.rebateCondition,
+                )
+              }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="detail-section"
+          v-if="currentDetail.type === 'MINIMUM_PAY' && currentDetail.minimumPayExtNotifyConfig"
+        >
+          <h3>最小实付配置</h3>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>最小实付金额：</label>
+              <span>{{ currentDetail.minimumPayExtNotifyConfig.minimumPay }}元</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </el-card>
+
+    <!-- 新增/编辑对话框 -->
+    <el-dialog
+      :title="isEdit ? '编辑监控配置' : '新增监控配置'"
+      v-model="dialogVisible"
+      width="500px"
+      class="monitor-dialog"
+      @close="resetForm"
+      :close-on-click-modal="false"
+      style="margin-top: 5vh"
+    >
+      <el-form :model="form" :rules="formRules" ref="formRef" label-width="110px">
+        <!-- 编辑模式显示只读信息 -->
+        <template v-if="isEdit && currentEditConfig">
+          <el-form-item label="类型">
+            <span>{{ getTypeText(currentEditConfig.type) }}</span>
+          </el-form-item>
+          <el-form-item label="位置">
+            <span>{{ getLocationName(currentEditConfig.locationId) }}</span>
+          </el-form-item>
+        </template>
+
+        <!-- 新增模式选择位置 -->
+        <template v-if="!isEdit">
+          <el-form-item label="位置" prop="locationId">
+            <el-select v-model="form.locationId" placeholder="请选择位置" style="width: 100%">
+              <el-option
+                v-for="loc in locationList"
+                :key="loc.id"
+                :label="loc.name"
+                :value="loc.id"
+              />
+            </el-select>
+          </el-form-item>
+        </template>
+
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="开始时间" prop="startHour">
+              <el-input-number
+                v-model="form.startHour"
+                :min="0"
+                :max="23"
+                controls-position="right"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="结束时间" prop="endHour">
+              <el-input-number
+                v-model="form.endHour"
+                :min="0"
+                :max="23"
+                controls-position="right"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-form-item label="运行星期" prop="weeks">
+          <el-checkbox-group v-model="form.weeks">
+            <el-checkbox
+              v-for="opt in weekOptions"
+              :key="opt.value"
+              :label="opt.value"
+              :value="opt.value"
+            >
+              {{ opt.label }}
+            </el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+
+        <!-- 最小实付金额：新增时始终显示，编辑时仅 MINIMUM_PAY 类型显示 -->
+        <template
+          v-if="!isEdit || (isEdit && currentEditConfig?.type === 'MINIMUM_PAY')"
+        >
+          <el-form-item label="最小实付" prop="minimumPayExtNotifyConfig.minimumPay">
+            <el-input-number
+              v-model="form.minimumPayExtNotifyConfig.minimumPay"
+              :min="1"
+              :precision="2"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </template>
+      </el-form>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="dialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="submitForm" :loading="submitLoading">确 定</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 运行记录对话框 -->
+    <el-dialog
+      :title="`运行记录 - ${historyConfigName}`"
+      v-model="historyDialogVisible"
+      :width="isMobile ? 'calc(100% - 32px)' : '900px'"
+      class="history-dialog"
+      style="margin-top: 5vh"
+    >
+      <div v-loading="historyLoading">
+        <!-- PC端表格 -->
+        <div class="history-table-wrapper">
+          <el-table :data="historyList" style="width: 100%" empty-text="暂无运行记录">
+            <el-table-column label="开始时间" min-width="160">
+              <template #default="{ row }">
+                {{ formatDateTime(row.startTime) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="结束时间" min-width="160">
+              <template #default="{ row }">
+                {{ formatDateTime(row.endTime) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="类型" min-width="90">
+              <template #default="{ row }">
+                <el-tag :type="getTypeTagType(row.notifyType)" size="small">
+                  {{ getTypeText(row.notifyType) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="通知门店数" min-width="100" align="center">
+              <template #default="{ row }">
+                {{ row.notifyStoreCount ?? '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" min-width="80" align="center">
+              <template #default="{ row }">
+                <el-tag :type="row.success ? 'success' : 'danger'" size="small">
+                  {{ row.success ? '成功' : '失败' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="备注" min-width="120" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ row.remark || '-' }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+
+        <!-- H5端卡片列表 -->
+        <div class="history-card-list">
+          <div v-if="historyList.length === 0" class="history-empty">
+            暂无运行记录
+          </div>
+          <div
+            v-for="item in historyList"
+            :key="item.id"
+            class="history-card-item"
+          >
+            <div class="history-card-header">
+              <span class="history-status" :class="item.success ? 'status-success' : 'status-fail'">
+                {{ item.success ? '成功' : '失败' }}
+              </span>
+              <el-tag :type="getTypeTagType(item.notifyType)" size="small">
+                {{ getTypeText(item.notifyType) }}
+              </el-tag>
+            </div>
+            <div class="history-card-body">
+              <p><span class="label">开始：</span>{{ formatDateTime(item.startTime) }}</p>
+              <p><span class="label">结束：</span>{{ formatDateTime(item.endTime) }}</p>
+              <p><span class="label">通知门店：</span>{{ item.notifyStoreCount ?? '-' }} 家</p>
+              <p v-if="item.remark"><span class="label">备注：</span>{{ item.remark }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分页 -->
+        <div class="history-pagination" v-if="historyPagination.total > 0">
+          <el-pagination
+            v-model:current-page="historyPagination.pageNum"
+            :page-size="historyPagination.pageSize"
+            :total="historyPagination.total"
+            layout="total, prev, pager, next"
+            small
+            @current-change="handleHistoryPageChange"
+          />
+        </div>
+      </div>
+    </el-dialog>
+  </div>
+</template>
+
+<style lang="scss" scoped>
+// ============================================
+// Card header
+// ============================================
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  span {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+  }
+}
+
+// ============================================
+// Grid layout
+// ============================================
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(640px, 1fr));
+  gap: 20px;
+
+  @media screen and (min-width: 2640px) {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  @media screen and (min-width: 1980px) and (max-width: 2639px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  @media screen and (min-width: 1320px) and (max-width: 1979px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media screen and (max-width: 1319px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+// ============================================
+// Card styles
+// ============================================
+.address-card {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  border-radius: 12px;
+  border: none;
+  overflow: hidden;
+  animation: fadeIn 0.5s ease forwards;
+
+  &:hover {
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08), 0 6px 6px rgba(0, 0, 0, 0.05);
+    transform: translateY(-4px);
+  }
+}
+
+.address-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.address-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+// ============================================
+// Notify info
+// ============================================
+.notify-info {
+  margin-bottom: 15px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #666;
+  line-height: 1.6;
+}
+
+// ============================================
+// Buttons
+// ============================================
+.operation-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-start;
+  align-items: center;
+  margin-top: 15px;
+
+  :deep(.el-button--small) {
+    padding: 5px 10px;
+  }
+}
+
+.edit-btn {
+  background-color: #f0f7ff !important;
+  color: #1890ff !important;
+  border-color: #bbd7ff !important;
+
+  &:hover {
+    background-color: #e6f7ff !important;
+    transform: translateY(-2px);
+  }
+}
+
+.delete-btn {
+  background-color: #fff2f0 !important;
+  color: #ff4d4f !important;
+  border-color: #ffccc7 !important;
+
+  &:hover {
+    background-color: #fff1f0 !important;
+    transform: translateY(-2px);
+  }
+}
+
+.history-btn {
+  background-color: #f0f5ff !important;
+  color: #722ed1 !important;
+  border-color: #d3adf7 !important;
+
+  &:hover {
+    background-color: #f9f0ff !important;
+    transform: translateY(-2px);
+  }
+}
+
+.add-address-btn {
+  background-color: #87ceeb !important;
+  color: #fff !important;
+  border-color: #87ceeb !important;
+
+  &:hover {
+    background-color: #6bb6e6 !important;
+    transform: translateY(-2px);
+  }
+}
+
+// ============================================
+// Empty state
+// ============================================
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+// ============================================
+// Detail view
+// ============================================
+.detail-content {
+  padding: 20px;
+}
+
+.detail-section {
+  margin-bottom: 30px;
+
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 15px;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+
+  label {
+    font-weight: 500;
+    color: #555;
+    min-width: 120px;
+    margin-right: 10px;
+  }
+
+  span {
+    color: #333;
+    flex: 1;
+  }
+}
+
+// ============================================
+// Dialog footer
+// ============================================
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+// ============================================
+// Utility
+// ============================================
+.mt-4 {
+  margin-top: 16px;
+}
+
+// ============================================
+// H5 / Mobile responsive
+// ============================================
+@media screen and (max-width: 768px) {
+  // 卡片头部
+  .card-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+
+    span {
+      font-size: 18px;
+    }
+
+    div {
+      width: 100%;
+      display: flex;
+      gap: 8px;
+    }
+  }
+
+  .add-address-btn {
+    flex: 1;
+    font-size: 14px !important;
+    padding: 10px 0 !important;
+  }
+
+  // 卡片网格
+  .config-grid {
+    gap: 16px;
+  }
+
+  // 卡片内容
+  .address-card {
+    :deep(.el-card__body) {
+      padding: 16px;
+    }
+  }
+
+  .address-header {
+    margin-bottom: 14px;
+  }
+
+  .address-name {
+    font-size: 17px;
+  }
+
+  // 信息条目
+  .info-item {
+    font-size: 15px;
+    margin-bottom: 10px;
+    line-height: 1.7;
+  }
+
+  // 操作按钮 - 增大触控区域
+  .operation-buttons {
+    gap: 10px;
+    margin-top: 16px;
+    justify-content: stretch;
+
+    .el-button {
+      flex: 1;
+      font-size: 14px !important;
+      padding: 10px 0 !important;
+      height: auto !important;
+      min-height: 38px;
+    }
+  }
+
+  // 详情视图
+  .detail-content {
+    padding: 12px 4px;
+  }
+
+  .detail-section h3 {
+    font-size: 17px;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .detail-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 12px 0;
+    font-size: 15px;
+
+    label {
+      min-width: auto;
+      margin-right: 0;
+      font-size: 14px;
+      color: #888;
+    }
+
+    span {
+      font-size: 15px;
+    }
+  }
+
+  // 对话框
+  .dialog-footer {
+    .el-button {
+      flex: 1;
+      font-size: 15px !important;
+      padding: 12px 0 !important;
+      height: auto !important;
+      min-height: 42px;
+    }
+  }
+}
+
+// 对话框移动端适配（需要穿透 scoped）
+.monitor-dialog {
+  :deep(.el-dialog) {
+    @media screen and (max-width: 768px) {
+      width: 92% !important;
+      margin: 16px auto !important;
+    }
+  }
+
+  :deep(.el-dialog__body) {
+    @media screen and (max-width: 768px) {
+      padding: 16px 12px;
+    }
+  }
+
+  // 表单移动端适配
+  :deep(.el-form) {
+    @media screen and (max-width: 768px) {
+      .el-form-item__label {
+        font-size: 14px;
+      }
+
+      .el-form-item {
+        margin-bottom: 20px;
+      }
+
+      .el-input-number {
+        .el-input__inner {
+          font-size: 15px;
+        }
+      }
+
+      .el-select {
+        .el-input__inner {
+          font-size: 15px;
+        }
+      }
+
+      .el-checkbox-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 4px;
+
+        .el-checkbox {
+          margin-right: 0;
+          padding: 6px 10px;
+          border: 1px solid #dcdfe6;
+          border-radius: 6px;
+
+          &.is-checked {
+            border-color: #409eff;
+            background-color: #ecf5ff;
+          }
+        }
+      }
+
+      // 时间输入行在小屏幕上垂直排列
+      .el-row {
+        .el-col {
+          max-width: 100%;
+          flex: 0 0 100%;
+
+          &:first-child {
+            margin-bottom: 4px;
+          }
+        }
+      }
+    }
+  }
+}
+
+// 运行记录对话框适配
+.history-dialog {
+  :deep(.el-dialog) {
+    @media screen and (max-width: 768px) {
+      width: calc(100% - 32px) !important;
+      max-width: 100vw !important;
+      margin: 16px auto !important;
+    }
+  }
+
+  :deep(.el-dialog__body) {
+    @media screen and (max-width: 768px) {
+      padding: 12px 8px;
+    }
+  }
+}
+
+// ============================================
+// History dialog content
+// ============================================
+.history-table-wrapper {
+  display: block;
+}
+
+.history-card-list {
+  display: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.history-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+  font-size: 14px;
+}
+
+.history-card-item {
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+  transition: box-shadow 0.2s;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+  word-break: break-word;
+
+  &:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+}
+
+.history-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.history-status {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+
+  &.status-success {
+    background-color: #f6ffed;
+    color: #52c41a;
+  }
+
+  &.status-fail {
+    background-color: #fff2f0;
+    color: #ff4d4f;
+  }
+}
+
+.history-card-body {
+  p {
+    margin: 6px 0;
+    font-size: 13px;
+    color: #555;
+    line-height: 1.6;
+  }
+
+  .label {
+    color: #999;
+    font-size: 12px;
+  }
+}
+
+.history-pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+@media screen and (max-width: 768px) {
+  .history-table-wrapper {
+    display: none;
+  }
+
+  .history-card-list {
+    display: block;
+  }
+
+  .history-pagination {
+    :deep(.el-pagination) {
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+  }
+}
+
+// ============================================
+// Animations
+// ============================================
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+</style>
