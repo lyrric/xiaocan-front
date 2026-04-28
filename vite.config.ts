@@ -18,7 +18,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': { // 匹配以 /api 开头的请求
-        target: 'http://localhost:10234', // 你的 Spring Boot 地址
+        target: 'http://127.0.0.1:10234/', // 你的 Spring Boot 地址
         changeOrigin: true, // 开启跨域
       }
     }

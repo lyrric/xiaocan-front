@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, inject } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowDown, View, Edit, Delete } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
 import api from '../api'
 
@@ -348,6 +349,20 @@ function refreshList() {
   loadConfigList()
 }
 
+function handleCardCommand(command: string, config: any) {
+  switch (command) {
+    case 'detail':
+      viewDetail(config)
+      break
+    case 'edit':
+      showEditDialog(config)
+      break
+    case 'delete':
+      deleteConfig(config.id)
+      break
+  }
+}
+
 onMounted(async () => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
@@ -442,37 +457,31 @@ onUnmounted(() => {
 
             <div class="operation-buttons">
               <el-button
-                size="medium"
+                size="small"
                 class="history-btn"
                 @click="showExecHistory(config)"
                 :disabled="loading"
               >
                 运行记录
               </el-button>
-              <el-button
-                size="medium"
-                class="edit-btn"
-                @click="viewDetail(config)"
-                :disabled="loading"
-              >
-                查看详情
-              </el-button>
-              <el-button
-                size="medium"
-                class="edit-btn"
-                @click="showEditDialog(config)"
-                :disabled="loading"
-              >
-                编辑
-              </el-button>
-              <el-button
-                size="medium"
-                class="delete-btn"
-                @click="deleteConfig(config.id)"
-                :disabled="loading"
-              >
-                删除
-              </el-button>
+              <el-dropdown trigger="click" @command="(cmd: string) => handleCardCommand(cmd, config)">
+                <el-button size="small" class="more-btn" :disabled="loading">
+                  更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="detail">
+                      <el-icon><View /></el-icon>查看详情
+                    </el-dropdown-item>
+                    <el-dropdown-item command="edit">
+                      <el-icon><Edit /></el-icon>编辑
+                    </el-dropdown-item>
+                    <el-dropdown-item command="delete" divided>
+                      <span style="color: #ff4d4f"><el-icon><Delete /></el-icon>删除</span>
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
           </div>
         </el-card>
@@ -863,47 +872,48 @@ onUnmounted(() => {
 // ============================================
 .operation-buttons {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
-  justify-content: flex-start;
+  justify-content: flex-end;
   align-items: center;
   margin-top: 15px;
-
-  :deep(.el-button--small) {
-    padding: 5px 10px;
-  }
-}
-
-.edit-btn {
-  background-color: #f0f7ff !important;
-  color: #1890ff !important;
-  border-color: #bbd7ff !important;
-
-  &:hover {
-    background-color: #e6f7ff !important;
-    transform: translateY(-2px);
-  }
-}
-
-.delete-btn {
-  background-color: #fff2f0 !important;
-  color: #ff4d4f !important;
-  border-color: #ffccc7 !important;
-
-  &:hover {
-    background-color: #fff1f0 !important;
-    transform: translateY(-2px);
-  }
 }
 
 .history-btn {
   background-color: #f0f5ff !important;
   color: #722ed1 !important;
   border-color: #d3adf7 !important;
+  border-radius: 8px !important;
+  font-weight: 500;
+  transition: all 0.25s ease;
 
   &:hover {
     background-color: #f9f0ff !important;
+    border-color: #b37feb !important;
     transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(114, 46, 209, 0.15);
+  }
+}
+
+.more-btn {
+  background-color: #fafafa !important;
+  color: #666 !important;
+  border-color: #e0e0e0 !important;
+  border-radius: 8px !important;
+  font-weight: 500;
+  transition: all 0.25s ease;
+
+  &:hover {
+    background-color: #f5f5f5 !important;
+    color: #333 !important;
+    border-color: #d0d0d0 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+
+  .el-icon--right {
+    margin-left: 4px;
+    font-size: 12px;
+    transition: transform 0.2s;
   }
 }
 
@@ -1049,14 +1059,13 @@ onUnmounted(() => {
   .operation-buttons {
     gap: 10px;
     margin-top: 16px;
-    justify-content: stretch;
+    justify-content: flex-end;
 
     .el-button {
-      flex: 1;
       font-size: 14px !important;
-      padding: 10px 0 !important;
+      padding: 8px 16px !important;
       height: auto !important;
-      min-height: 38px;
+      min-height: 36px;
     }
   }
 

@@ -1288,8 +1288,8 @@ $radius-full: 999px;
 // Loading skeleton
 // ============================================
 .loading-container {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
@@ -1363,9 +1363,9 @@ $radius-full: 999px;
 // Store card
 // ============================================
 .store-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
 }
 
 .store-card {
@@ -1777,7 +1777,12 @@ $radius-full: 999px;
   }
 
   .store-list {
-    gap: 12px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .loading-container {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .store-card {
@@ -1798,6 +1803,16 @@ $radius-full: 999px;
   .drawer-slide-enter-from,
   .drawer-slide-leave-to {
     transform: translateX(-50%) translateY(100%);
+  }
+}
+
+@media screen and (min-width: 1200px) {
+  .store-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .loading-container {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 

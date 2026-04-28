@@ -12,6 +12,7 @@ const authState = inject<{
 const loading = ref(false)
 const searchForm = reactive({
   notifyConfigId: null as number | null,
+  notifyType: null as string | null,
   pageNum: 1,
   pageSize: 20,
 })
@@ -20,6 +21,14 @@ const pagination = reactive({
   hasNextPage: true,
   isLoadingMore: false,
 })
+
+const notifyConfigList = ref<any[]>([])
+const locationList = ref<any[]>([])
+
+const notifyTypeOptions = [
+  { label: '指定门店', value: 'STORE_ACTIVITY' },
+  { label: '最小实付', value: 'MINIMUM_PAY' },
+]
 
 let scrollObserver: IntersectionObserver | null = null
 const loadMoreTrigger = ref<HTMLElement | null>(null)
@@ -126,6 +135,43 @@ function getRebateConditionText(condition: number) {
   return conditions[condition] || '其他'
 }
 
+async function loadNotifyConfigList() {
+  try {
+    const response = await api.get('/api/notify/config/list')
+    if (response.data.success) {
+      notifyConfigList.value = response.data.data || []
+    }
+  } catch {
+    // 静默失败
+  }
+}
+
+async function loadLocations() {
+  try {
+    const response = await api.get('/api/location')
+    if (response.data.success) {
+      locationList.value = response.data.data || []
+    }
+  } catch {
+    // 静默失败
+  }
+}
+
+function getConfigLabel(config: any) {
+  const locName = locationList.value.find((l: any) => l.id === config.locationId)?.name || '未知位置'
+  const typeName = getNotifyTypeName(config.type)
+  return `${locName} - ${typeName} (${config.startHour}:00-${config.endHour}:00)`
+}
+
+function getLocationName(locationId: number) {
+  const loc = locationList.value.find((l: any) => l.id === locationId)
+  return loc ? loc.name : '未知位置'
+}
+
+function handleConfigChange() {
+  handleSearch()
+}
+
 function getNotifyTypeName(notifyType: string) {
   const types: Record<string, string> = {
     STORE_ACTIVITY: '指定门店',
@@ -182,6 +228,7 @@ function formatTime(dateStr: string) {
 
 onMounted(async () => {
   await authState?.waitForAuth()
+  await Promise.all([loadNotifyConfigList(), loadLocations()])
   handleSearch()
   initScrollObserver()
 })
@@ -195,6 +242,72 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="history-page">
+
+
+    <!-- Filter bar -->
+    <div class="filter-bar">
+      <div class="filter-card">
+        <div class="filter-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+          </svg>
+        </div>
+        <div class="filter-body">
+          <span class="filter-label">监控配置</span>
+          <el-select
+            v-model="searchForm.notifyConfigId"
+            placeholder="全部配置"
+            clearable
+            @change="handleConfigChange"
+            class="filter-select"
+            :teleported="false"
+          >
+            <el-option
+              v-for="config in notifyConfigList"
+              :key="config.id"
+              :label="getConfigLabel(config)"
+              :value="config.id"
+            >
+              <div class="filter-option">
+                <span class="option-name">{{ getLocationName(config.locationId) }}</span>
+                <span :class="getNotifyTypeClass(config.type) + ' option-type'">{{ getNotifyTypeName(config.type) }}</span>
+              </div>
+              <div class="filter-option-sub">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span>{{ config.startHour }}:00 - {{ config.endHour }}:00</span>
+              </div>
+            </el-option>
+          </el-select>
+        </div>
+        <div class="filter-divider"></div>
+        <div class="filter-body">
+          <span class="filter-label">类型</span>
+          <el-select
+            v-model="searchForm.notifyType"
+            placeholder="全部类型"
+            clearable
+            @change="handleConfigChange"
+            class="filter-select"
+            :teleported="false"
+          >
+            <el-option
+              v-for="opt in notifyTypeOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            >
+              <div class="filter-option">
+                <span :class="getNotifyTypeClass(opt.value) + ' option-type'">{{ opt.label }}</span>
+              </div>
+            </el-option>
+          </el-select>
+        </div>
+      </div>
+    </div>
+
     <!-- Content area -->
     <div class="content">
       <!-- Loading state -->
@@ -309,6 +422,7 @@ onBeforeUnmount(() => {
 // ============================================
 $primary: #4f6ef7;
 $primary-light: #eef2ff;
+$primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 $success: #22c55e;
 $danger: #ef4444;
 $text-primary: #1a1a2e;
@@ -320,7 +434,230 @@ $border: #e5e7eb;
 $radius-sm: 8px;
 $radius-md: 12px;
 $radius-lg: 16px;
+$radius-xl: 20px;
 $radius-full: 999px;
+
+// ============================================
+// Page header
+// ============================================
+.page-header {
+  background: $primary-gradient;
+  border-radius: $radius-xl;
+  padding: 24px 28px;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.25);
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    right: 15%;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  z-index: 1;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: $radius-md;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.header-text {
+  color: #fff;
+}
+
+.header-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 2px;
+  line-height: 1.3;
+}
+
+.header-subtitle {
+  font-size: 13px;
+  opacity: 0.8;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.header-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: $radius-full;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(10px);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+// ============================================
+// Filter bar
+// ============================================
+.filter-bar {
+  margin-bottom: 16px;
+}
+
+.filter-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: $card-bg;
+  border-radius: $radius-lg;
+  padding: 12px 18px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba($border, 0.5);
+  transition: box-shadow 0.2s;
+
+  &:hover {
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.filter-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: $radius-sm;
+  background: $primary-light;
+  color: $primary;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.filter-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-divider {
+  width: 1px;
+  height: 28px;
+  background: $border;
+  flex-shrink: 0;
+}
+
+.filter-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: $text-secondary;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.filter-select {
+  flex: 1;
+  min-width: 0;
+
+  :deep(.el-input__wrapper) {
+    border-radius: $radius-sm;
+    box-shadow: none !important;
+    background: #f5f6fa;
+    padding: 2px 10px;
+    transition: background 0.2s;
+
+    &:hover {
+      background: #eef0f5;
+    }
+
+    &.is-focus {
+      background: #fff;
+      box-shadow: 0 0 0 2px rgba($primary, 0.15) !important;
+    }
+  }
+
+  :deep(.el-input__inner) {
+    font-size: 13px;
+  }
+
+  :deep(.el-select__caret) {
+    color: $text-hint;
+  }
+
+  :deep(.el-input__suffix) {
+    .el-icon {
+      font-size: 14px;
+    }
+  }
+}
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.4;
+
+  .option-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  .option-type {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: $radius-full;
+    font-weight: 500;
+    line-height: 1.6;
+  }
+}
+
+.filter-option-sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: $text-hint;
+  margin-top: 2px;
+  line-height: 1;
+
+  svg {
+    flex-shrink: 0;
+  }
+}
 
 // ============================================
 // Page layout
@@ -328,37 +665,6 @@ $radius-full: 999px;
 .history-page {
   padding-bottom: 20px;
   padding-bottom: calc(20px + env(safe-area-inset-bottom));
-}
-
-// ============================================
-// Header
-// ============================================
-.header {
-  position: sticky;
-  top: -1px;
-  z-index: 100;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-radius: $radius-lg;
-  padding: 14px 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-}
-
-.header-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 18px;
-  font-weight: 600;
-  color: $text-primary;
-}
-
-.title-icon {
-  width: 22px;
-  height: 22px;
-  color: $primary;
 }
 
 // ============================================
@@ -372,17 +678,18 @@ $radius-full: 999px;
 // Loading skeleton
 // ============================================
 .loading-container {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 14px;
 }
 
 .loading-skeleton {
   display: flex;
   gap: 12px;
-  padding: 16px;
+  padding: 18px;
   background: $card-bg;
   border-radius: $radius-md;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .skeleton-avatar {
@@ -424,18 +731,21 @@ $radius-full: 999px;
 // ============================================
 .empty-state {
   text-align: center;
-  padding: 60px 20px;
+  padding: 80px 20px;
+  background: $card-bg;
+  border-radius: $radius-xl;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
 }
 
 .empty-illustration {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .empty-title {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: $text-primary;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .empty-desc {
@@ -444,32 +754,60 @@ $radius-full: 999px;
 }
 
 // ============================================
-// History list
+// History list - Grid layout
 // ============================================
 .history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
 }
 
 .history-card {
   background: $card-bg;
-  border-radius: $radius-md;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  transition: box-shadow 0.2s;
+  border-radius: $radius-lg;
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba($border, 0.4);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: $primary-gradient;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  &:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+    border-color: rgba($primary, 0.2);
+
+    &::before {
+      opacity: 1;
+    }
+  }
 }
 
 // ============================================
 // Card time
 // ============================================
 .card-time {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 5px;
   font-size: 12px;
   color: $text-hint;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  padding: 3px 10px 3px 6px;
+  background: #f9fafb;
+  border-radius: $radius-full;
 }
 
 // ============================================
@@ -477,7 +815,7 @@ $radius-full: 999px;
 // ============================================
 .card-main {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   align-items: flex-start;
 }
 
@@ -485,12 +823,13 @@ $radius-full: 999px;
   width: 56px;
   height: 56px;
   border-radius: $radius-sm;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: $primary-gradient;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
 
   img {
     width: 100%;
@@ -594,9 +933,9 @@ $radius-full: 999px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #f3f4f6;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #eef0f4;
 }
 
 .info-chip {
@@ -606,6 +945,7 @@ $radius-full: 999px;
   background: #f3f4f6;
   color: $text-secondary;
   white-space: nowrap;
+  transition: background 0.2s;
 
   &.chip-success {
     background: #dcfce7;
@@ -700,25 +1040,64 @@ $radius-full: 999px;
 }
 
 // ============================================
-// Responsive: larger screens
+// Responsive: PC larger screens
 // ============================================
 @media screen and (min-width: 769px) {
-  .header {
-    border-radius: $radius-lg;
-    margin: 0 0 16px;
-    padding: 16px 20px;
+  .page-header {
+    padding: 28px 32px;
+    margin-bottom: 20px;
+  }
+
+  .header-title {
+    font-size: 24px;
+  }
+
+  .header-subtitle {
+    font-size: 14px;
+  }
+
+  .filter-bar {
+    margin-bottom: 20px;
+  }
+
+  .filter-card {
+    padding: 14px 20px;
+  }
+
+  .filter-body {
+    max-width: 280px;
   }
 
   .history-list {
-    gap: 12px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .loading-container {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .history-card {
-    padding: 18px;
+    padding: 22px;
+  }
 
-    &:hover {
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-    }
+  .store-avatar {
+    width: 60px;
+    height: 60px;
+  }
+
+  .store-name {
+    max-width: 65%;
+  }
+}
+
+@media screen and (min-width: 1200px) {
+  .history-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .loading-container {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
@@ -726,9 +1105,75 @@ $radius-full: 999px;
 // Responsive: mobile
 // ============================================
 @media screen and (max-width: 768px) {
-  .header {
-    margin-bottom: 10px;
-    padding: 12px;
+  .page-header {
+    padding: 16px 18px;
+    border-radius: $radius-lg;
+    margin-bottom: 12px;
+
+    &::before,
+    &::after {
+      display: none;
+    }
+  }
+
+  .header-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .header-title {
+    font-size: 18px;
+  }
+
+  .header-subtitle {
+    font-size: 12px;
+  }
+
+  .header-stat {
+    font-size: 12px;
+    padding: 4px 10px;
+  }
+
+  .filter-card {
+    padding: 10px 14px;
+    }
+
+  .filter-label {
+    display: none;
+  }
+
+  .filter-divider {
+    display: none;
+  }
+
+  .history-card {
+    border-radius: $radius-md;
+    padding: 16px;
+    border: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+    &::before {
+      display: none;
+    }
+
+    &:hover {
+      transform: none;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      border-color: transparent;
+    }
+  }
+
+  .loading-container {
+    grid-template-columns: 1fr;
+  }
+
+  .empty-state {
+    border-radius: $radius-md;
+    padding: 60px 20px;
+  }
+
+  .card-tags {
+    border-top-style: solid;
   }
 }
 </style>
