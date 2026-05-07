@@ -913,6 +913,8 @@ $radius-full: 999px;
 .home-page {
   padding-bottom: 20px;
   padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 // ============================================
@@ -1282,6 +1284,8 @@ $radius-full: 999px;
 // ============================================
 .content {
   min-height: 50vh;
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 // ============================================
@@ -1374,6 +1378,8 @@ $radius-full: 999px;
   padding: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   transition: box-shadow 0.2s;
+  overflow: hidden;
+  max-width: 100%;
 
   &.sold-out {
     .card-main {
@@ -1507,6 +1513,8 @@ $radius-full: 999px;
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid #f3f4f6;
+  overflow: hidden;
+  max-width: 100%;
 }
 
 .info-chip {
@@ -1516,6 +1524,9 @@ $radius-full: 999px;
   background: #f3f4f6;
   color: $text-secondary;
   white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 
   &.chip-success {
     background: #dcfce7;
