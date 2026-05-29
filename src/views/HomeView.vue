@@ -1570,71 +1570,8 @@ $radius-full: 999px;
 }
 
 // ============================================
-// Monitor dialog
+// Monitor dialog (styles in non-scoped block below due to append-to-body)
 // ============================================
-.monitor-dialog {
-  :deep(.el-dialog) {
-    max-width: 90vw;
-
-    @media screen and (max-width: 768px) {
-      width: 92% !important;
-      margin: 16px auto !important;
-    }
-  }
-
-  :deep(.el-dialog__body) {
-    @media screen and (max-width: 768px) {
-      padding: 16px 12px;
-    }
-  }
-
-  :deep(.el-form) {
-    @media screen and (max-width: 768px) {
-      .el-form-item__label {
-        font-size: 14px;
-      }
-
-      .el-form-item {
-        margin-bottom: 20px;
-      }
-
-      .el-input-number {
-        .el-input__inner {
-          font-size: 15px;
-        }
-      }
-
-      .el-checkbox-group {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px 4px;
-
-        .el-checkbox {
-          margin-right: 0;
-          padding: 6px 10px;
-          border: 1px solid #dcdfe6;
-          border-radius: 6px;
-
-          &.is-checked {
-            border-color: #409eff;
-            background-color: #ecf5ff;
-          }
-        }
-      }
-
-      .el-row {
-        .el-col {
-          max-width: 100%;
-          flex: 0 0 100%;
-
-          &:first-child {
-            margin-bottom: 4px;
-          }
-        }
-      }
-    }
-  }
-}
 
 .store-preview {
   display: flex;
@@ -1836,14 +1773,74 @@ $radius-full: 999px;
     padding: 10px 12px;
   }
 
-  :deep(.el-dialog) {
-    width: 92% !important;
-    margin: 0 auto;
-  }
-
   .config-form {
     :deep(.el-form-item__label) {
       font-size: 13px;
+    }
+  }
+}
+</style>
+
+<style lang="scss">
+// Non-scoped styles for el-dialog
+// append-to-body teleports dialog outside component DOM, breaking scoped styles
+.monitor-dialog.el-dialog {
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+
+  @media screen and (max-width: 768px) {
+    width: 92% !important;
+    margin: 16px auto !important;
+
+    .el-dialog__body {
+      padding: 16px 12px;
+      max-height: 65vh;
+      overflow-y: auto;
+    }
+
+    .el-form {
+      .el-form-item__label {
+        font-size: 14px;
+      }
+
+      .el-form-item {
+        margin-bottom: 20px;
+      }
+
+      .el-input-number {
+        .el-input__inner {
+          font-size: 15px;
+        }
+      }
+
+      .el-checkbox-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 4px;
+
+        .el-checkbox {
+          margin-right: 0;
+          padding: 6px 10px;
+          border: 1px solid #dcdfe6;
+          border-radius: 6px;
+
+          &.is-checked {
+            border-color: #409eff;
+            background-color: #ecf5ff;
+          }
+        }
+      }
+
+      .el-row {
+        .el-col {
+          max-width: 100%;
+          flex: 0 0 100%;
+
+          &:first-child {
+            margin-bottom: 4px;
+          }
+        }
+      }
     }
   }
 }
