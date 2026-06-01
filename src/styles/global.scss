@@ -74,3 +74,138 @@ body {
   }
 }
 
+// ============================================
+// Global mobile dialog adaptation
+// All el-dialogs teleported to body need non-scoped responsive styles
+// ============================================
+
+// Common max-width safety net for all dialog classes
+.monitor-dialog.el-dialog,
+.token-dialog.el-dialog,
+.notify-config-dialog.el-dialog,
+.history-dialog.el-dialog {
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+}
+
+@media screen and (max-width: 768px) {
+  // --- Token dialog ---
+  .token-dialog.el-dialog {
+    width: 92% !important;
+    border-radius: 16px;
+
+    .dialog-header {
+      padding: 20px 16px;
+    }
+
+    .dialog-title {
+      font-size: 18px;
+    }
+
+    .dialog-subtitle {
+      font-size: 13px;
+    }
+
+    .dialog-body {
+      padding: 16px;
+    }
+
+    .code-input-group {
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .code-btn {
+      width: 100%;
+      min-width: auto;
+    }
+  }
+
+  // --- Notify config dialog ---
+  .notify-config-dialog.el-dialog {
+    width: 92% !important;
+
+    .el-dialog__body {
+      max-height: 55vh;
+    }
+  }
+
+  // --- Monitor dialog ---
+  .monitor-dialog.el-dialog {
+    width: 92% !important;
+    margin: 16px auto !important;
+
+    .el-dialog__body {
+      padding: 16px 12px;
+      max-height: 65vh;
+      overflow-y: auto;
+    }
+
+    .el-form {
+      .el-form-item__label {
+        font-size: 14px;
+      }
+
+      .el-form-item {
+        margin-bottom: 20px;
+      }
+
+      .el-input-number .el-input__inner {
+        font-size: 15px;
+      }
+
+      .el-select .el-input__inner {
+        font-size: 15px;
+      }
+
+      .el-checkbox-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 4px;
+
+        .el-checkbox {
+          margin-right: 0;
+          padding: 6px 10px;
+          border: 1px solid #dcdfe6;
+          border-radius: 6px;
+
+          &.is-checked {
+            border-color: #409eff;
+            background-color: #ecf5ff;
+          }
+        }
+      }
+
+      .el-row .el-col {
+        max-width: 100%;
+        flex: 0 0 100%;
+      }
+    }
+  }
+
+  // --- History dialog ---
+  .history-dialog.el-dialog {
+    width: calc(100% - 32px) !important;
+    margin: 16px auto !important;
+
+    .el-dialog__body {
+      padding: 12px 8px;
+    }
+  }
+
+  // --- Common dialog footer ---
+  .el-dialog .dialog-footer {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+
+    .el-button {
+      flex: 1;
+      font-size: 15px !important;
+      padding: 12px 0 !important;
+      height: auto !important;
+      min-height: 42px;
+    }
+  }
+}
+
