@@ -310,6 +310,23 @@ function getCurrentLocation() {
   }
 }
 
+function copyStoreName(name: string) {
+  navigator.clipboard.writeText(name).then(() => {
+    ElMessage.success('门店名称已复制')
+  }).catch(() => {
+    // fallback for older browsers
+    const textarea = document.createElement('textarea')
+    textarea.value = name
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+    ElMessage.success('门店名称已复制')
+  })
+}
+
 function goToAddressPage() {
   router.push('/location')
 }
@@ -730,6 +747,12 @@ onBeforeUnmount(() => {
             <div class="store-body">
               <div class="store-name-row">
                 <span class="store-name">{{ store.name }}</span>
+                <span class="copy-btn" @click.stop="copyStoreName(store.name)" title="复制门店名称">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                </span>
                 <span v-if="store.ifNew" class="badge badge-new">新店</span>
                 <span :class="getPlatformClass(store.type)" class="badge">{{ getPlatformName(store.type) }}</span>
               </div>
@@ -1442,6 +1465,29 @@ $radius-full: 999px;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 55%;
+}
+
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: $text-hint;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+
+  &:hover {
+    color: $primary;
+    background: $primary-light;
+  }
+
+  &:active {
+    transform: scale(0.9);
+  }
 }
 
 .badge {
