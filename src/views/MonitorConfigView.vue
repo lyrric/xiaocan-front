@@ -286,6 +286,24 @@ function deleteConfig(configId: number) {
     })
 }
 
+async function toggleStatus(config: any) {
+  const targetStatus = config.status === 'ENABLE' ? 'DISABLE' : 'ENABLE'
+  const actionText = targetStatus === 'ENABLE' ? '启用' : '停用'
+  try {
+    const response = await api.put(`/api/notify/config/${config.id}/status`, null, {
+      params: { status: targetStatus },
+    })
+    if (response.data.success) {
+      ElMessage.success(`${actionText}成功`)
+      await loadConfigList()
+    } else {
+      ElMessage.error(response.data.msg || `${actionText}失败`)
+    }
+  } catch {
+    ElMessage.error(`${actionText}失败，请检查网络连接`)
+  }
+}
+
 async function showExecHistory(config: any) {
   historyConfigId.value = config.id
   historyConfigName.value = getLocationName(config.locationId)
@@ -413,9 +431,17 @@ onUnmounted(() => {
           <div>
             <div class="address-header">
               <div class="address-name">{{ getLocationName(config.locationId) }}</div>
-              <el-tag :type="getTypeTagType(config.type)" size="small" style="margin-left: auto">
-                {{ getTypeText(config.type) }}
-              </el-tag>
+              <div style="display: flex; gap: 6px; margin-left: auto; align-items: center;">
+                <el-tag
+                  :type="config.status === 'ENABLE' ? 'success' : 'info'"
+                  size="small"
+                >
+                  {{ config.status === 'ENABLE' ? '启用中' : '已停用' }}
+                </el-tag>
+                <el-tag :type="getTypeTagType(config.type)" size="small">
+                  {{ getTypeText(config.type) }}
+                </el-tag>
+              </div>
             </div>
 
             <div class="notify-info">
@@ -456,6 +482,14 @@ onUnmounted(() => {
             </div>
 
             <div class="operation-buttons">
+              <el-button
+                size="small"
+                :class="config.status === 'ENABLE' ? 'disable-btn' : 'enable-btn'"
+                @click="toggleStatus(config)"
+                :disabled="loading"
+              >
+                {{ config.status === 'ENABLE' ? '停用' : '启用' }}
+              </el-button>
               <el-button
                 size="small"
                 class="history-btn"
@@ -891,6 +925,38 @@ onUnmounted(() => {
     border-color: #b37feb !important;
     transform: translateY(-2px);
     box-shadow: 0 2px 8px rgba(114, 46, 209, 0.15);
+  }
+}
+
+.enable-btn {
+  background-color: #f6ffed !important;
+  color: #52c41a !important;
+  border-color: #b7eb8f !important;
+  border-radius: 8px !important;
+  font-weight: 500;
+  transition: all 0.25s ease;
+
+  &:hover {
+    background-color: #d9f7be !important;
+    border-color: #95de64 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(82, 196, 26, 0.15);
+  }
+}
+
+.disable-btn {
+  background-color: #fff7e6 !important;
+  color: #fa8c16 !important;
+  border-color: #ffd591 !important;
+  border-radius: 8px !important;
+  font-weight: 500;
+  transition: all 0.25s ease;
+
+  &:hover {
+    background-color: #ffe7ba !important;
+    border-color: #ffc069 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(250, 140, 22, 0.15);
   }
 }
 
