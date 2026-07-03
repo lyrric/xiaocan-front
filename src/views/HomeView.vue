@@ -311,20 +311,32 @@ function getCurrentLocation() {
 }
 
 function copyStoreName(name: string) {
-  navigator.clipboard.writeText(name).then(() => {
-    ElMessage.success('门店名称已复制')
-  }).catch(() => {
-    // fallback for older browsers
-    const textarea = document.createElement('textarea')
-    textarea.value = name
-    textarea.style.position = 'fixed'
-    textarea.style.opacity = '0'
-    document.body.appendChild(textarea)
-    textarea.select()
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(name).then(() => {
+      ElMessage.success('门店名称已复制')
+    }).catch(() => {
+      fallbackCopy(name)
+    })
+  } else {
+    fallbackCopy(name)
+  }
+}
+
+function fallbackCopy(name: string) {
+  const textarea = document.createElement('textarea')
+  textarea.value = name
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  try {
     document.execCommand('copy')
-    document.body.removeChild(textarea)
     ElMessage.success('门店名称已复制')
-  })
+  } catch (err) {
+    ElMessage.error('复制失败')
+  } finally {
+    document.body.removeChild(textarea)
+  }
 }
 
 function goToAddressPage() {
