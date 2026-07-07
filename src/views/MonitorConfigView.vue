@@ -64,6 +64,7 @@ const form = reactive({
   },
   storeKeywordExtNotifyConfig: {
     keyword: '',
+    limitDistance: true,
   },
 })
 
@@ -213,7 +214,7 @@ function resetForm() {
   form.endHour = 22
   form.weeks = []
   form.minimumPayExtNotifyConfig = { minimumPay: 1 }
-  form.storeKeywordExtNotifyConfig = { keyword: '' }
+  form.storeKeywordExtNotifyConfig = { keyword: '', limitDistance: true }
   configType.value = 'MINIMUM_PAY'
   isEdit.value = false
   editingId.value = null
@@ -240,6 +241,7 @@ function showEditDialog(config: any) {
   }
   if (config.type === 'STORE_KEYWORD' && config.storeKeywordExtNotifyConfig) {
     form.storeKeywordExtNotifyConfig.keyword = config.storeKeywordExtNotifyConfig.keyword
+    form.storeKeywordExtNotifyConfig.limitDistance = config.storeKeywordExtNotifyConfig.limitDistance !== false
   }
   dialogVisible.value = true
 }
@@ -500,6 +502,12 @@ onUnmounted(() => {
               >
                 <span>关键字：{{ config.storeKeywordExtNotifyConfig.keyword }}</span>
               </p>
+              <p
+                v-if="config.type === 'STORE_KEYWORD' && config.storeKeywordExtNotifyConfig"
+                class="info-item"
+              >
+                <span>限距离制：{{ config.storeKeywordExtNotifyConfig.limitDistance !== false ? '开启（≤3500米）' : '关闭' }}</span>
+              </p>
               <template
                 v-if="
                   config.type === 'STORE_ACTIVITY' &&
@@ -672,6 +680,10 @@ onUnmounted(() => {
               <label>门店关键字：</label>
               <span>{{ currentDetail.storeKeywordExtNotifyConfig.keyword }}</span>
             </div>
+            <div class="detail-item">
+              <label>限距离制：</label>
+              <span>{{ currentDetail.storeKeywordExtNotifyConfig.limitDistance !== false ? '开启（≤3500米）' : '关闭' }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -781,6 +793,11 @@ onUnmounted(() => {
               placeholder="请输入门店关键字，如：麦当劳"
               clearable
             />
+          </el-form-item>
+          <el-form-item label="限距离制">
+            <el-checkbox v-model="form.storeKeywordExtNotifyConfig.limitDistance">
+              开启后仅推送距离 3500 米以内的门店
+            </el-checkbox>
           </el-form-item>
         </template>
       </el-form>
