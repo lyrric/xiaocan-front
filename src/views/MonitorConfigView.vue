@@ -62,7 +62,12 @@ const form = reactive({
   minimumPayExtNotifyConfig: {
     minimumPay: 1,
   },
+  storeKeywordExtNotifyConfig: {
+    keyword: '',
+  },
 })
+
+const configType = ref<string>('MINIMUM_PAY')
 
 const formRules = {
   locationId: [{ required: true, message: '请选择位置', trigger: 'change' }],
@@ -84,6 +89,20 @@ const formRules = {
   'minimumPayExtNotifyConfig.minimumPay': [
     { required: true, message: '请输入最小实付金额', trigger: 'blur' },
   ],
+  'storeKeywordExtNotifyConfig.keyword': [
+    {
+      required: true,
+      validator: (_rule: any, value: string, callback: any) => {
+        const type = isEdit.value ? currentEditConfig.value?.type : configType.value
+        if (type === 'STORE_KEYWORD' && (!value || !value.trim())) {
+          callback(new Error('请输入门店关键字'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
 }
 
 function getTypeText(type: string) {
@@ -92,6 +111,8 @@ function getTypeText(type: string) {
       return '指定门店'
     case 'MINIMUM_PAY':
       return '最小实付'
+    case 'STORE_KEYWORD':
+      return '门店关键字'
     default:
       return '未知类型'
   }
@@ -103,6 +124,8 @@ function getTypeTagType(type: string) {
       return '' as const
     case 'MINIMUM_PAY':
       return 'success' as const
+    case 'STORE_KEYWORD':
+      return 'warning' as const
     default:
       return 'info' as const
   }
@@ -190,6 +213,8 @@ function resetForm() {
   form.endHour = 22
   form.weeks = []
   form.minimumPayExtNotifyConfig = { minimumPay: 1 }
+  form.storeKeywordExtNotifyConfig = { keyword: '' }
+  configType.value = 'MINIMUM_PAY'
   isEdit.value = false
   editingId.value = null
   currentEditConfig.value = null
@@ -212,6 +237,9 @@ function showEditDialog(config: any) {
   form.weeks = config.weeks ? config.weeks.split(',') : []
   if (config.type === 'MINIMUM_PAY' && config.minimumPayExtNotifyConfig) {
     form.minimumPayExtNotifyConfig.minimumPay = config.minimumPayExtNotifyConfig.minimumPay
+  }
+  if (config.type === 'STORE_KEYWORD' && config.storeKeywordExtNotifyConfig) {
+    form.storeKeywordExtNotifyConfig.keyword = config.storeKeywordExtNotifyConfig.keyword
   }
   dialogVisible.value = true
 }
@@ -237,9 +265,16 @@ function submitForm() {
           if (currentEditConfig.value.type === 'STORE_ACTIVITY') {
             requestData.storeExtNotifyConfig = currentEditConfig.value.storeExtNotifyConfig
           }
+          if (currentEditConfig.value.type === 'STORE_KEYWORD') {
+            requestData.storeKeywordExtNotifyConfig = form.storeKeywordExtNotifyConfig
+          }
         } else {
-          requestData.type = 'MINIMUM_PAY'
-          requestData.minimumPayExtNotifyConfig = form.minimumPayExtNotifyConfig
+          requestData.type = configType.value
+          if (configType.value === 'MINIMUM_PAY') {
+            requestData.minimumPayExtNotifyConfig = form.minimumPayExtNotifyConfig
+          } else if (configType.value === 'STORE_KEYWORD') {
+            requestData.storeKeywordExtNotifyConfig = form.storeKeywordExtNotifyConfig
+          }
         }
 
         const response = await api.post('/api/notify/config', requestData)
@@ -459,6 +494,12 @@ onUnmounted(() => {
                   >最小实付：{{ config.minimumPayExtNotifyConfig.minimumPay }}元</span
                 >
               </p>
+              <p
+                v-if="config.type === 'STORE_KEYWORD' && config.storeKeywordExtNotifyConfig"
+                class="info-item"
+              >
+                <span>关键字：{{ config.storeKeywordExtNotifyConfig.keyword }}</span>
+              </p>
               <template
                 v-if="
                   config.type === 'STORE_ACTIVITY' &&
@@ -620,6 +661,19 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
+
+        <div
+          class="detail-section"
+          v-if="currentDetail.type === 'STORE_KEYWORD' && currentDetail.storeKeywordExtNotifyConfig"
+        >
+          <h3>关键字配置</h3>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>门店关键字：</label>
+              <span>{{ currentDetail.storeKeywordExtNotifyConfig.keyword }}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </el-card>
 
@@ -654,6 +708,12 @@ onUnmounted(() => {
                 :label="loc.name"
                 :value="loc.id"
               />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="监控类型">
+            <el-select v-model="configType" style="width: 100%">
+              <el-option label="最小实付" value="MINIMUM_PAY" />
+              <el-option label="门店关键字" value="STORE_KEYWORD" />
             </el-select>
           </el-form-item>
         </template>
@@ -696,9 +756,9 @@ onUnmounted(() => {
           </el-checkbox-group>
         </el-form-item>
 
-        <!-- 最小实付金额：新增时始终显示，编辑时仅 MINIMUM_PAY 类型显示 -->
+        <!-- 最小实付金额：新增且类型为 MINIMUM_PAY 时显示，编辑时仅 MINIMUM_PAY 类型显示 -->
         <template
-          v-if="!isEdit || (isEdit && currentEditConfig?.type === 'MINIMUM_PAY')"
+          v-if="!isEdit ? configType === 'MINIMUM_PAY' : currentEditConfig?.type === 'MINIMUM_PAY'"
         >
           <el-form-item label="最小实付" prop="minimumPayExtNotifyConfig.minimumPay">
             <el-input-number
@@ -707,6 +767,19 @@ onUnmounted(() => {
               :precision="2"
               controls-position="right"
               style="width: 100%"
+            />
+          </el-form-item>
+        </template>
+
+        <!-- 门店关键字：新增且类型为 STORE_KEYWORD 时显示，编辑时仅 STORE_KEYWORD 类型显示 -->
+        <template
+          v-if="!isEdit ? configType === 'STORE_KEYWORD' : currentEditConfig?.type === 'STORE_KEYWORD'"
+        >
+          <el-form-item label="门店关键字" prop="storeKeywordExtNotifyConfig.keyword">
+            <el-input
+              v-model="form.storeKeywordExtNotifyConfig.keyword"
+              placeholder="请输入门店关键字，如：麦当劳"
+              clearable
             />
           </el-form-item>
         </template>
