@@ -59,6 +59,7 @@ const form = reactive({
   startHour: 8,
   endHour: 22,
   weeks: [] as string[],
+  cron: '',
   minimumPayExtNotifyConfig: {
     minimumPay: 1,
   },
@@ -68,18 +69,41 @@ const form = reactive({
   },
 })
 
+const cronCollapseActive = ref<string[]>([])
+
 const configType = ref<string>('MINIMUM_PAY')
 
 const formRules = {
   locationId: [{ required: true, message: '请选择位置', trigger: 'change' }],
-  startHour: [{ required: true, message: '请输入开始时间', trigger: 'blur' }],
-  endHour: [{ required: true, message: '请输入结束时间', trigger: 'blur' }],
+  startHour: [
+    {
+      validator: (_rule: any, value: number, callback: any) => {
+        if (!form.cron && (value === null || value === undefined)) {
+          callback(new Error('未填写 cron 时，开始时间必填'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
+  endHour: [
+    {
+      validator: (_rule: any, value: number, callback: any) => {
+        if (!form.cron && (value === null || value === undefined)) {
+          callback(new Error('未填写 cron 时，结束时间必填'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
   weeks: [
     {
-      required: true,
       validator: (_rule: any, value: string[], callback: any) => {
-        if (!value || value.length === 0) {
-          callback(new Error('请至少选择一天'))
+        if (!form.cron && (!value || value.length === 0)) {
+          callback(new Error('未填写 cron 时，请至少选择一天'))
         } else {
           callback()
         }
@@ -87,12 +111,33 @@ const formRules = {
       trigger: 'change',
     },
   ],
+  cron: [
+    {
+      validator: (_rule: any, value: string, callback: any) => {
+        const trimmed = value ? value.trim() : ''
+        if (!trimmed) {
+          if (!form.startHour || !form.endHour || !form.weeks || form.weeks.length === 0) {
+            callback(new Error('未填写 cron 时，开始时间、结束时间、运行星期必须填写'))
+          } else {
+            callback()
+          }
+        } else {
+          const parts = trimmed.split(/\s+/)
+          if (parts.length !== 6) {
+            callback(new Error('cron 表达式应为 6 位，以空格分隔（含秒），如：0 15 9 * * ?'))
+          } else {
+            callback()
+          }
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
   'minimumPayExtNotifyConfig.minimumPay': [
     { required: true, message: '请输入最小实付金额', trigger: 'blur' },
   ],
   'storeKeywordExtNotifyConfig.keyword': [
     {
-      required: true,
       validator: (_rule: any, value: string, callback: any) => {
         const type = isEdit.value ? currentEditConfig.value?.type : configType.value
         if (type === 'STORE_KEYWORD' && (!value || !value.trim())) {
@@ -213,8 +258,10 @@ function resetForm() {
   form.startHour = 8
   form.endHour = 22
   form.weeks = []
+  form.cron = ''
   form.minimumPayExtNotifyConfig = { minimumPay: 1 }
   form.storeKeywordExtNotifyConfig = { keyword: '', limitDistance: true }
+  cronCollapseActive.value = []
   configType.value = 'MINIMUM_PAY'
   isEdit.value = false
   editingId.value = null
@@ -233,9 +280,11 @@ function showEditDialog(config: any) {
   editingId.value = config.id
   currentEditConfig.value = config
   form.locationId = config.locationId
-  form.startHour = config.startHour
-  form.endHour = config.endHour
+  form.startHour = config.startHour ?? 8
+  form.endHour = config.endHour ?? 22
   form.weeks = config.weeks ? config.weeks.split(',') : []
+  form.cron = config.cron || ''
+  cronCollapseActive.value = form.cron ? ['cron'] : []
   if (config.type === 'MINIMUM_PAY' && config.minimumPayExtNotifyConfig) {
     form.minimumPayExtNotifyConfig.minimumPay = config.minimumPayExtNotifyConfig.minimumPay
   }
@@ -251,11 +300,13 @@ function submitForm() {
     if (valid) {
       submitLoading.value = true
       try {
+        const trimmedCron = form.cron ? form.cron.trim() : ''
         const requestData: any = {
           locationId: form.locationId,
-          startHour: form.startHour,
-          endHour: form.endHour,
-          weeks: form.weeks.join(','),
+          cron: trimmedCron || null,
+          startHour: trimmedCron ? (form.startHour ?? null) : form.startHour,
+          endHour: trimmedCron ? (form.endHour ?? null) : form.endHour,
+          weeks: trimmedCron ? (form.weeks.length > 0 ? form.weeks.join(',') : null) : form.weeks.join(','),
         }
 
         if (isEdit.value) {
@@ -482,11 +533,14 @@ onUnmounted(() => {
             </div>
 
             <div class="notify-info">
-              <p class="info-item">
+              <p v-if="!config.cron" class="info-item">
                 <span>运行时间：{{ config.startHour }}:00 - {{ config.endHour }}:00</span>
               </p>
-              <p class="info-item">
+              <p v-if="!config.cron" class="info-item">
                 <span>运行星期：{{ formatWeeks(config.weeks) }}</span>
+              </p>
+              <p v-if="config.cron" class="info-item">
+                <span>cron：{{ config.cron }}</span>
               </p>
               <p
                 v-if="config.type === 'MINIMUM_PAY' && config.minimumPayExtNotifyConfig"
@@ -600,13 +654,17 @@ onUnmounted(() => {
               <label>位置：</label>
               <span>{{ getLocationName(currentDetail.locationId) }}</span>
             </div>
-            <div class="detail-item">
+            <div v-if="!currentDetail.cron" class="detail-item">
               <label>运行时间：</label>
               <span>{{ currentDetail.startHour }}:00 - {{ currentDetail.endHour }}:00</span>
             </div>
-            <div class="detail-item">
+            <div v-if="!currentDetail.cron" class="detail-item">
               <label>运行星期：</label>
               <span>{{ formatWeeks(currentDetail.weeks) }}</span>
+            </div>
+            <div v-if="currentDetail.cron" class="detail-item">
+              <label>cron 表达式：</label>
+              <span>{{ currentDetail.cron }}</span>
             </div>
           </div>
         </div>
@@ -766,6 +824,20 @@ onUnmounted(() => {
               {{ opt.label }}
             </el-checkbox>
           </el-checkbox-group>
+        </el-form-item>
+
+        <el-form-item prop="cron">
+          <el-collapse v-model="cronCollapseActive" style="width: 100%">
+            <el-collapse-item title="自定义 cron 表达式（高级）" name="cron">
+              <el-input
+                v-model="form.cron"
+                placeholder="如：0 15 9 * * ?（6位，含秒）"
+                clearable
+                style="width: 100%"
+              />
+              <p class="cron-tip">填写后将完全按 cron 执行，无需设置开始/结束时间和运行星期。</p>
+            </el-collapse-item>
+          </el-collapse>
         </el-form-item>
 
         <!-- 最小实付金额：新增且类型为 MINIMUM_PAY 时显示，编辑时仅 MINIMUM_PAY 类型显示 -->
@@ -1455,6 +1527,13 @@ onUnmounted(() => {
       justify-content: center;
     }
   }
+}
+
+.cron-tip {
+  font-size: 12px;
+  color: #999;
+  margin-top: 8px;
+  line-height: 1.5;
 }
 
 // ============================================

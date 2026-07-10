@@ -53,21 +53,66 @@ const notifyConfigForm = reactive({
   startHour: 8,
   endHour: 22,
   weeks: [] as string[],
+  cron: '',
 })
+const notifyConfigCronCollapseActive = ref<string[]>([])
 const notifyConfigRules = {
-  startHour: [{ required: true, message: '请输入开始时间', trigger: 'blur' }],
-  endHour: [{ required: true, message: '请输入结束时间', trigger: 'blur' }],
+  startHour: [
+    {
+      validator: (_rule: any, value: number, callback: any) => {
+        if (!notifyConfigForm.cron && (value === null || value === undefined)) {
+          callback(new Error('未填写 cron 时，开始时间必填'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
+  endHour: [
+    {
+      validator: (_rule: any, value: number, callback: any) => {
+        if (!notifyConfigForm.cron && (value === null || value === undefined)) {
+          callback(new Error('未填写 cron 时，结束时间必填'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
   weeks: [
     {
-      required: true,
       validator: (_rule: any, value: string[], callback: any) => {
-        if (!value || value.length === 0) {
-          callback(new Error('请至少选择一天'))
+        if (!notifyConfigForm.cron && (!value || value.length === 0)) {
+          callback(new Error('未填写 cron 时，请至少选择一天'))
         } else {
           callback()
         }
       },
       trigger: 'change',
+    },
+  ],
+  cron: [
+    {
+      validator: (_rule: any, value: string, callback: any) => {
+        const trimmed = value ? value.trim() : ''
+        if (!trimmed) {
+          if (!notifyConfigForm.startHour || !notifyConfigForm.endHour || !notifyConfigForm.weeks || notifyConfigForm.weeks.length === 0) {
+            callback(new Error('未填写 cron 时，开始时间、结束时间、运行星期必须填写'))
+          } else {
+            callback()
+          }
+        } else {
+          const parts = trimmed.split(/\s+/)
+          if (parts.length !== 6) {
+            callback(new Error('cron 表达式应为 6 位，以空格分隔（含秒），如：0 15 9 * * ?'))
+          } else {
+            callback()
+          }
+        }
+      },
+      trigger: 'blur',
     },
   ],
 }
@@ -231,6 +276,8 @@ function handleBook(store: any) {
   notifyConfigForm.startHour = 8
   notifyConfigForm.endHour = 22
   notifyConfigForm.weeks = []
+  notifyConfigForm.cron = ''
+  notifyConfigCronCollapseActive.value = []
   notifyConfigVisible.value = true
 }
 
@@ -514,6 +561,8 @@ function handleDialogClose() {
   notifyConfigForm.startHour = 8
   notifyConfigForm.endHour = 22
   notifyConfigForm.weeks = []
+  notifyConfigForm.cron = ''
+  notifyConfigCronCollapseActive.value = []
 }
 
 async function handleNotifyConfigSave() {
@@ -536,12 +585,16 @@ async function handleNotifyConfigSave() {
   notifyConfigSaving.value = true
 
   try {
-    const configData = {
+    const trimmedCron = notifyConfigForm.cron ? notifyConfigForm.cron.trim() : ''
+    const configData: any = {
       type: 'STORE_ACTIVITY',
       locationId: selectedAddress.value.id,
-      startHour: notifyConfigForm.startHour,
-      endHour: notifyConfigForm.endHour,
-      weeks: notifyConfigForm.weeks.join(','),
+      cron: trimmedCron || null,
+      startHour: trimmedCron ? (notifyConfigForm.startHour ?? null) : notifyConfigForm.startHour,
+      endHour: trimmedCron ? (notifyConfigForm.endHour ?? null) : notifyConfigForm.endHour,
+      weeks: trimmedCron
+        ? (notifyConfigForm.weeks.length > 0 ? notifyConfigForm.weeks.join(',') : null)
+        : notifyConfigForm.weeks.join(','),
       storeExtNotifyConfig: {
         storeInfo: currentNotifyStore.value,
       },
@@ -878,6 +931,20 @@ onBeforeUnmount(() => {
                     {{ opt.label }}
                   </el-checkbox>
                 </el-checkbox-group>
+              </el-form-item>
+
+              <el-form-item prop="cron">
+                <el-collapse v-model="notifyConfigCronCollapseActive" style="width: 100%">
+                  <el-collapse-item title="自定义 cron 表达式（高级）" name="cron">
+                    <el-input
+                      v-model="notifyConfigForm.cron"
+                      placeholder="如：0 15 9 * * ?（6位，含秒）"
+                      clearable
+                      style="width: 100%"
+                    />
+                    <p class="cron-tip">填写后将完全按 cron 执行，无需设置开始/结束时间和运行星期。</p>
+                  </el-collapse-item>
+                </el-collapse>
               </el-form-item>
             </el-form>
           </div>
@@ -1766,6 +1833,13 @@ $radius-full: 999px;
 .pagination-info {
   color: $text-hint;
   font-size: 12px;
+}
+
+.cron-tip {
+  font-size: 12px;
+  color: #999;
+  margin-top: 8px;
+  line-height: 1.5;
 }
 
 // ============================================
