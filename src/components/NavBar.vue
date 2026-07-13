@@ -54,6 +54,14 @@ const codeBtnText = ref('发送验证码')
 const codeCountdown = ref(60)
 const registerLoading = ref(false)
 
+// Register success dialog
+const registerSuccessDialogVisible = ref(false)
+const registeredToken = ref('')
+const quickAccessUrl = computed(() => {
+  const base = window.location.origin + window.location.pathname + window.location.hash.split('?')[0]
+  return base + '?token=' + registeredToken.value
+})
+
 function extractAndStoreToken() {
   const urlParams = new URLSearchParams(window.location.search)
   const token = urlParams.get('token')
@@ -173,14 +181,30 @@ async function handleRegisterConfirm() {
     registerLoading.value = false
     const tokenValue = response.data.data ? response.data.data.token : null
     if (tokenValue) {
+      registeredToken.value = tokenValue
       localStorage.setItem('token', tokenValue)
+      dialogVisible.value = false
+      registerSuccessDialogVisible.value = true
+    } else {
+      dialogVisible.value = false
+      window.location.reload()
     }
-    dialogVisible.value = false
-    // 刷新页面
-    window.location.reload()
   } catch {
     registerLoading.value = false
   }
+}
+
+function handleRegisterSuccessConfirm() {
+  registerSuccessDialogVisible.value = false
+  window.location.reload()
+}
+
+function copyQuickAccessUrl() {
+  navigator.clipboard.writeText(quickAccessUrl.value).then(() => {
+    ElMessage.success('链接已复制到剪贴板')
+  }).catch(() => {
+    ElMessage.warning('复制失败，请手动复制')
+  })
 }
 
 onMounted(() => {
@@ -347,6 +371,56 @@ onMounted(() => {
           </div>
         </el-tab-pane>
       </el-tabs>
+    </div>
+  </el-dialog>
+
+  <!-- Register success dialog -->
+  <el-dialog
+    v-model="registerSuccessDialogVisible"
+    width="520px"
+    :close-on-click-modal="false"
+    :close-on-press-escape="false"
+    :show-close="false"
+    align-center
+  >
+    <template #header>
+      <div class="dialog-header success-header">
+        <div class="dialog-icon">
+          <el-icon size="28"><Select /></el-icon>
+        </div>
+        <h3 class="dialog-title">注册成功</h3>
+        <p class="dialog-subtitle">请保存以下信息以便后续使用</p>
+      </div>
+    </template>
+
+    <div class="success-dialog-body">
+      <div class="token-display">
+        <label class="token-label">您的 Token</label>
+        <div class="token-value-box">
+          <code class="token-value">{{ registeredToken }}</code>
+        </div>
+      </div>
+
+      <div class="token-display">
+        <label class="token-label">快速访问链接（免登录）</label>
+        <div class="token-value-box url-box">
+          <code class="token-value url-value">{{ quickAccessUrl }}</code>
+          <el-button size="small" class="copy-btn" @click="copyQuickAccessUrl">
+            复制链接
+          </el-button>
+        </div>
+        <p class="token-hint">通过此链接访问页面无需登录，请妥善保管</p>
+      </div>
+
+      <el-button
+        type="primary"
+        size="large"
+        class="submit-btn"
+        @click="handleRegisterSuccessConfirm"
+      >
+        <el-icon><Select /></el-icon>
+        确定
+      </el-button>
     </div>
   </el-dialog>
 </template>
@@ -606,6 +680,72 @@ onMounted(() => {
   opacity: 0.9;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.success-header {
+  background: linear-gradient(135deg, #67c23a 0%, #42b883 100%);
+}
+
+.success-dialog-body {
+  padding: 24px;
+}
+
+.token-display {
+  margin-bottom: 20px;
+}
+
+.token-label {
+  display: block;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.token-value-box {
+  background: #f5f7fa;
+  border: 1px solid #e4e7ed;
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.token-value {
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  color: #303133;
+  word-break: break-all;
+  flex: 1;
+  user-select: all;
+}
+
+.url-box {
+  flex-wrap: wrap;
+}
+
+.url-value {
+  font-size: 13px;
+  color: #667eea;
+}
+
+.copy-btn {
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: #fff;
+}
+
+.copy-btn:hover {
+  opacity: 0.9;
+}
+
+.token-hint {
+  color: #909399;
+  font-size: 12px;
+  margin: 8px 0 0;
 }
 
 @media (max-width: 768px) {
