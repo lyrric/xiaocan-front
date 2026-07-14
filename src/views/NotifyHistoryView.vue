@@ -28,6 +28,7 @@ const locationList = ref<any[]>([])
 const notifyTypeOptions = [
   { label: '指定门店', value: 'STORE_ACTIVITY' },
   { label: '最小实付', value: 'MINIMUM_PAY' },
+  { label: '关键字', value: 'STORE_KEYWORD' },
 ]
 
 let scrollObserver: IntersectionObserver | null = null
