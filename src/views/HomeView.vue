@@ -16,6 +16,10 @@ const authState = inject<{
 
 const loading = ref(false)
 const actionLoading = reactive<Record<string, boolean>>({})
+
+// Tab: 'xiaochan' | 'meituan'
+const activeTab = ref<'xiaochan' | 'meituan'>('xiaochan')
+
 const searchForm = reactive({
   name: '',
   orderType: 1,
@@ -30,6 +34,28 @@ const pagination = reactive({
   currentPage: 1,
   hasNextPage: true,
   isLoadingMore: false,
+})
+
+// 美团赏金专用状态
+const meituanSearchForm = reactive({
+  name: '',
+  latitude: '',
+  longitude: '',
+  pvId: '',
+})
+const meituanHasNextPage = ref(true)
+const meituanIsLoadingMore = ref(false)
+
+// 搜索框双向绑定：根据 Tab 切换对应 form 的 name 字段
+const currentSearchName = computed({
+  get: () => activeTab.value === 'xiaochan' ? searchForm.name : meituanSearchForm.name,
+  set: (v: string) => {
+    if (activeTab.value === 'xiaochan') {
+      searchForm.name = v
+    } else {
+      meituanSearchForm.name = v
+    }
+  },
 })
 
 let scrollObserver: IntersectionObserver | null = null
@@ -126,13 +152,46 @@ const weekOptions = [
   { label: '周日', value: '7' },
 ]
 const currentNotifyStore = ref<any>(null)
+
+// 其它搜索 dialog
+const otherSearchVisible = ref(false)
+const otherSearchKeyword = ref('')
+const otherSearchResults = ref<any[]>([])
+const otherSearchLoading = ref(false)
+const otherSearchDone = ref(false)
+const currentOtherSearchActivity = ref<any>(null)
 const defaultCityCode = 110100
 
 const loadedPages = computed(() => {
   return Math.ceil(storeList.value.length / searchForm.pageSize)
 })
 
-async function handleSearch(resetPage = true) {
+// 按 uniqId 聚合门店列表
+const groupedStoreList = computed(() => {
+  const groupMap = new Map<string, any>()
+  const groups: any[] = []
+  for (const store of storeList.value) {
+    const key = store.uniqId || String(store.promotionId || store.storeId || Math.random())
+    let group = groupMap.get(key)
+    if (!group) {
+      group = {
+        uniqId: key,
+        primary: store,
+        activities: [] as any[],
+        hasAvailable: false,
+      }
+      groupMap.set(key, group)
+      groups.push(group)
+    }
+    group.activities.push(store)
+    if (store.leftNumber > 0) {
+      group.hasAvailable = true
+    }
+  }
+  return groups
+})
+
+async function fetchXiaochanList(resetPage = true) {
   if (resetPage) {
     searchForm.pageNum = 1
     pagination.currentPage = 1
@@ -173,6 +232,61 @@ async function handleSearch(resetPage = true) {
   }
 }
 
+async function fetchMeituanList(resetPage = true) {
+  if (resetPage) {
+    meituanSearchForm.pvId = ''
+    meituanHasNextPage.value = true
+    storeList.value = []
+  }
+
+  // 同步地址坐标
+  meituanSearchForm.latitude = searchForm.latitude
+  meituanSearchForm.longitude = searchForm.longitude
+
+  loading.value = resetPage
+
+  try {
+    const response = await api.post('/api/xiaochan/mtsj', meituanSearchForm)
+    if (response.data.success) {
+      const data = response.data.data
+      const newItems: any[] = data.storeInfos || []
+      if (resetPage) {
+        storeList.value = newItems
+      } else {
+        storeList.value = [...storeList.value, ...newItems]
+      }
+      // 更新游标
+      meituanSearchForm.pvId = data.pagePvId || ''
+      // pagePvId 为空或无数据时视为无下一页
+      meituanHasNextPage.value = !!(data.pagePvId && newItems.length > 0)
+    } else {
+      ElMessage.error(response.data.msg || '查询失败')
+    }
+  } catch {
+    ElMessage.error('网络错误，请稍后重试')
+  } finally {
+    loading.value = false
+    meituanIsLoadingMore.value = false
+    nextTick(() => {
+      reinitScrollObserver()
+    })
+  }
+}
+
+async function handleSearch(resetPage = true) {
+  if (activeTab.value === 'meituan') {
+    await fetchMeituanList(resetPage)
+  } else {
+    await fetchXiaochanList(resetPage)
+  }
+}
+
+function handleTabChange(tab: 'xiaochan' | 'meituan') {
+  activeTab.value = tab
+  storeList.value = []
+  handleSearch(true)
+}
+
 function handleSort(orderType: number) {
   searchForm.orderType = orderType
   handleSearch()
@@ -184,10 +298,12 @@ function initScrollObserver() {
       scrollObserver = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
+            const hasNext = activeTab.value === 'meituan' ? meituanHasNextPage.value : pagination.hasNextPage
+            const isLoadingMore = activeTab.value === 'meituan' ? meituanIsLoadingMore.value : pagination.isLoadingMore
             if (
               entry.isIntersecting &&
-              pagination.hasNextPage &&
-              !pagination.isLoadingMore &&
+              hasNext &&
+              !isLoadingMore &&
               !loading.value
             ) {
               loadNextPage()
@@ -209,13 +325,17 @@ function reinitScrollObserver() {
 }
 
 async function loadNextPage() {
-  if (!pagination.hasNextPage || pagination.isLoadingMore || loading.value) {
-    return
+  if (activeTab.value === 'meituan') {
+    if (!meituanHasNextPage.value || meituanIsLoadingMore.value || loading.value) return
+    meituanIsLoadingMore.value = true
+    await fetchMeituanList(false)
+  } else {
+    if (!pagination.hasNextPage || pagination.isLoadingMore || loading.value) return
+    pagination.isLoadingMore = true
+    pagination.currentPage++
+    searchForm.pageNum = pagination.currentPage
+    await fetchXiaochanList(false)
   }
-  pagination.isLoadingMore = true
-  pagination.currentPage++
-  searchForm.pageNum = pagination.currentPage
-  await handleSearch(false)
 }
 
 async function refreshCurrentPageData() {
@@ -554,6 +674,51 @@ function findAddressById(addressId: string) {
   return addressOptions.value.find((addr: any) => addr.id === addressId)
 }
 
+function formatStoreName(name: string) {
+  if (!name) return ''
+  const idx = name.search(/[(\uff08]/)
+  return idx > 0 ? name.slice(0, idx).trim() : name.trim()
+}
+
+function handleOtherSearch(activity: any) {
+  currentOtherSearchActivity.value = activity
+  otherSearchKeyword.value = formatStoreName(activity.name)
+  otherSearchResults.value = []
+  otherSearchDone.value = false
+  otherSearchVisible.value = true
+  executeOtherSearch()
+}
+
+async function executeOtherSearch() {
+  if (!otherSearchKeyword.value.trim()) {
+    ElMessage.warning('请输入搜索关键词')
+    return
+  }
+  otherSearchLoading.value = true
+  otherSearchResults.value = []
+  otherSearchDone.value = false
+  try {
+    const response = await api.post('/api/xiaochan/mtsj', {
+      name: otherSearchKeyword.value.trim(),
+      latitude: searchForm.latitude,
+      longitude: searchForm.longitude,
+      pvId: '',
+    })
+    if (response.data.success) {
+      const data = response.data.data
+      const items: any[] = data.storeInfos || []
+      otherSearchResults.value = items.slice(0, 3)
+    } else {
+      ElMessage.error(response.data.msg || '查询失败')
+    }
+  } catch {
+    ElMessage.error('网络错误，请稍后重试')
+  } finally {
+    otherSearchLoading.value = false
+    otherSearchDone.value = true
+  }
+}
+
 function handleDialogClose() {
   notifyConfigVisible.value = false
   currentNotifyStore.value = null
@@ -640,6 +805,20 @@ onBeforeUnmount(() => {
   <div class="home-page">
     <!-- Sticky header search area -->
     <div class="header">
+      <!-- Tab 切换 -->
+      <div class="tab-bar">
+        <div
+          class="tab-item"
+          :class="{ active: activeTab === 'xiaochan' }"
+          @click="handleTabChange('xiaochan')"
+        >小蚕满减</div>
+        <div
+          class="tab-item"
+          :class="{ active: activeTab === 'meituan' }"
+          @click="handleTabChange('meituan')"
+        >美团赏金</div>
+      </div>
+
       <!-- Top bar: address + location icon -->
       <div class="header-top">
         <div class="address-trigger" @click="addressPopoverVisible = true">
@@ -653,6 +832,7 @@ onBeforeUnmount(() => {
           </svg>
         </div>
         <div
+          v-if="activeTab === 'xiaochan'"
           class="filter-toggle"
           :class="{ active: searchForm.onlyAvailable }"
           @click="searchForm.onlyAvailable = !searchForm.onlyAvailable; handleSearch()"
@@ -671,14 +851,14 @@ onBeforeUnmount(() => {
           <line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
         <input
-          v-model="searchForm.name"
+          v-model="currentSearchName"
           class="search-input-native"
           type="search"
           placeholder="搜索门店名称"
           enterkeyhint="search"
           @keyup.enter="handleSearch()"
         />
-        <div v-if="searchForm.name" class="search-clear" @click="searchForm.name = ''; handleSearch()">
+        <div v-if="currentSearchName" class="search-clear" @click="currentSearchName = ''; handleSearch()">
           <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
             <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/>
           </svg>
@@ -688,8 +868,8 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Sort chips - horizontal scroll -->
-      <div class="sort-chips">
+      <!-- Sort chips - horizontal scroll（仅小蚕满减显示） -->
+      <div v-if="activeTab === 'xiaochan'" class="sort-chips">
         <div
           class="chip"
           :class="{ active: searchForm.orderType === 1 }"
@@ -798,65 +978,151 @@ onBeforeUnmount(() => {
       <!-- Store list -->
       <div v-else class="store-list">
         <div
-          v-for="store in storeList"
-          :key="store.promotionId"
+          v-for="group in groupedStoreList"
+          :key="group.uniqId"
           class="store-card"
-          :class="{ 'sold-out': store.leftNumber <= 0 }"
+          :class="{ 'sold-out': !group.hasAvailable }"
         >
-          <!-- Card top: image + core info -->
+          <!-- Card header: shared store info -->
           <div class="card-main">
             <div class="store-avatar">
-              <img v-if="store.icon" :src="store.icon" :alt="store.name" />
-              <span v-else class="avatar-letter">{{ store.name.charAt(0) }}</span>
+              <img v-if="group.primary.icon" :src="group.primary.icon" :alt="group.primary.name" />
+              <span v-else class="avatar-letter">{{ group.primary.name.charAt(0) }}</span>
             </div>
             <div class="store-body">
               <div class="store-name-row">
-                <span class="store-name">{{ store.name }}</span>
-                <span class="copy-btn" @click.stop="copyStoreName(store.name)" title="复制门店名称">
+                <span class="store-name">{{ group.primary.name }}</span>
+                <span class="copy-btn" @click.stop="copyStoreName(group.primary.name)" title="复制门店名称">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                   </svg>
                 </span>
-                <span v-if="store.ifNew" class="badge badge-new">新店</span>
-                <span :class="getPlatformClass(store.type)" class="badge">{{ getPlatformName(store.type) }}</span>
+                <span v-if="group.primary.ifNew" class="badge badge-new">新店</span>
+                <span :class="getPlatformClass(group.primary.type)" class="badge">{{ getPlatformName(group.primary.type) }}</span>
               </div>
-              <div class="store-price-row">
-                <span class="price-tag">
-                  满<em>{{ store.price }}</em>返<em class="rebate">{{ store.rebatePrice }}</em>
-                </span>
-                <span class="distance-tag">{{ formatDistance(store.distance) }}</span>
+              <div class="store-meta-row">
+                <span class="distance-tag">{{ activeTab === 'xiaochan' ? formatDistance(group.primary.distance) : group.primary.distance }}</span>
+                <span class="meta-sep">·</span>
+                <span class="open-hours-tag">{{ group.primary.openHours }}</span>
               </div>
             </div>
           </div>
 
-          <!-- Card detail chips -->
-          <div class="card-tags">
-            <span class="info-chip">{{ store.startTime }}-{{ store.endTime }}</span>
-            <span class="info-chip">{{ getRebateConditionText(store.rebateCondition) }}</span>
-            <span class="info-chip">{{ store.openHours }}</span>
-            <span
-              class="info-chip"
-              :class="{ 'chip-danger': store.leftNumber <= 0, 'chip-success': store.leftNumber > 0 }"
-            >
-              {{ store.leftNumber > 0 ? '剩余 ' + store.leftNumber : '已售罄' }}
-            </span>
-          </div>
-
-          <!-- Card action -->
-          <div class="card-action" v-if="store.leftNumber <= 0">
+          <!-- Activity list -->
+          <div class="activity-list" :class="{ 'single-activity': group.activities.length === 1 }">
             <div
-              class="notify-btn"
-              @click="handleBook(store)"
+              v-for="activity in group.activities"
+              :key="activity.promotionId"
+              class="activity-row"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-              </svg>
-              到货提醒
+              <div class="activity-info">
+                <span v-if="activeTab === 'xiaochan'" class="price-tag">
+                  满<em>{{ activity.price }}</em>返<em class="rebate">{{ activity.rebatePrice }}</em>
+                </span>
+                <span v-else class="price-tag">
+                  返<em class="rebate">{{ activity.rebateRatio }}%</em>&nbsp;最高<em>{{ activity.rebateMax }}</em>元
+                </span>
+                <div class="activity-tags">
+                  <span class="info-chip">{{ activity.startTime }}-{{ activity.endTime }}</span>
+                  <span class="info-chip">{{ getRebateConditionText(activity.rebateCondition) }}</span>
+                  <span
+                    class="info-chip"
+                    :class="{ 'chip-danger': activity.leftNumber <= 0, 'chip-success': activity.leftNumber > 0 }"
+                  >
+                    {{ activity.leftNumber > 0 ? '剩余 ' + activity.leftNumber : '已售罄' }}
+                  </span>
+                </div>
+              </div>
+              <div class="activity-actions">
+                <div class="activity-action" v-if="(activeTab === 'xiaochan' || activity.storeId)">
+                  <div class="other-search-btn" @click="handleOtherSearch(activity)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    搜索
+                  </div>
+                </div>
+                <div class="activity-action" v-if="activity.leftNumber <= 0 && (activeTab === 'xiaochan' || activity.storeId)">
+                  <div class="notify-btn" @click="handleBook(activity)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    </svg>
+                    到货提醒
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+
+        <!-- 其它搜索 dialog -->
+        <el-dialog
+          title="其它搜索"
+          v-model="otherSearchVisible"
+          width="500px"
+          class="other-search-dialog"
+          :close-on-click-modal="true"
+          :append-to-body="true"
+          style="margin-top: 5vh"
+        >
+          <div class="other-search-content">
+            <div class="other-search-input-row">
+              <el-input
+                v-model="otherSearchKeyword"
+                placeholder="输入门店名称搜索"
+                clearable
+                @keyup.enter="executeOtherSearch"
+              />
+              <el-button
+                type="primary"
+                @click="executeOtherSearch"
+                :loading="otherSearchLoading"
+                style="flex-shrink: 0; margin-left: 10px"
+              >搜索</el-button>
+            </div>
+            <div class="other-search-results">
+              <div v-if="otherSearchLoading" class="other-search-loading">
+                <el-icon class="is-loading" :size="20"><i class="el-icon-loading" /></el-icon>
+                <span>搜索中...</span>
+              </div>
+              <div v-else-if="otherSearchResults.length === 0 && !otherSearchLoading && otherSearchDone" class="other-search-empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32" style="opacity: 0.4; margin-bottom: 8px">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  <line x1="8" y1="11" x2="14" y2="11"/>
+                </svg>
+                <div>未找到相关门店，试试换个关键词吧</div>
+              </div>
+              <div v-else-if="otherSearchResults.length === 0 && !otherSearchLoading && !otherSearchDone" class="other-search-empty">
+                搜索中，请稍候...
+              </div>
+              <div
+                v-for="(item, index) in otherSearchResults"
+                :key="index"
+                class="other-search-result-item"
+              >
+                <div class="osr-avatar">
+                  <img v-if="item.icon" :src="item.icon" :alt="item.name" />
+                  <span v-else>{{ (item.name || '?').charAt(0) }}</span>
+                </div>
+                <div class="osr-info">
+                  <div class="osr-name">{{ item.name }}</div>
+                  <div class="osr-detail">
+                    <span v-if="item.distance">{{ item.distance }}</span>
+                    <span v-if="item.rebateRatio"> · 返{{ item.rebateRatio }}% 最高{{ item.rebateMax }}元</span>
+                    <span
+                      class="osr-left-num"
+                      :class="item.leftNumber > 0 ? 'osr-left-available' : 'osr-left-soldout'"
+                    >
+                      · {{ item.leftNumber > 0 ? '剩余 ' + item.leftNumber : '已售罄' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </el-dialog>
 
         <!-- Notify config dialog -->
         <el-dialog
@@ -883,7 +1149,12 @@ onBeforeUnmount(() => {
               <div class="store-preview-info">
                 <div class="store-preview-name">{{ currentNotifyStore.name }}</div>
                 <div class="store-preview-detail">
-                  满{{ currentNotifyStore.price }}返{{ currentNotifyStore.rebatePrice }}元
+                  <template v-if="activeTab === 'xiaochan'">
+                    满{{ currentNotifyStore.price }}返{{ currentNotifyStore.rebatePrice }}元
+                  </template>
+                  <template v-else>
+                    返{{ (currentNotifyStore.rebateRatio * 100).toFixed(0) }}% 最高{{ currentNotifyStore.rebateMax }}元
+                  </template>
                 </div>
               </div>
             </div>
@@ -966,14 +1237,14 @@ onBeforeUnmount(() => {
 
         <!-- Scroll load more indicator -->
         <div class="scroll-loading-container" v-if="storeList.length > 0">
-          <div v-if="pagination.isLoadingMore" class="loading-more">
+          <div v-if="activeTab === 'meituan' ? meituanIsLoadingMore : pagination.isLoadingMore" class="loading-more">
             <div class="loading-dots">
               <span></span><span></span><span></span>
             </div>
             <span>加载中</span>
           </div>
 
-          <div v-else-if="!pagination.hasNextPage" class="no-more-data">
+          <div v-else-if="!(activeTab === 'meituan' ? meituanHasNextPage : pagination.hasNextPage)" class="no-more-data">
             <span class="divider-line"></span>
             <span>没有更多了</span>
             <span class="divider-line"></span>
@@ -983,7 +1254,7 @@ onBeforeUnmount(() => {
             &nbsp;
           </div>
 
-          <div class="pagination-info">共 {{ storeList.length }} 条</div>
+          <div class="pagination-info">共 {{ groupedStoreList.length }} 家门店，{{ storeList.length }} 个活动</div>
         </div>
       </div>
     </div>
@@ -1034,6 +1305,37 @@ $radius-full: 999px;
   margin-bottom: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   transition: box-shadow 0.3s;
+}
+
+// ============================================
+// Tab Bar
+// ============================================
+.tab-bar {
+  display: flex;
+  background: #f0f2f5;
+  border-radius: $radius-sm;
+  padding: 3px;
+  margin-bottom: 10px;
+}
+
+.tab-item {
+  flex: 1;
+  text-align: center;
+  padding: 7px 0;
+  border-radius: 6px;
+  font-size: 14px;
+  color: $text-secondary;
+  cursor: pointer;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+
+  &.active {
+    background: #fff;
+    color: $text-primary;
+    font-weight: 600;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  }
 }
 
 // ============================================
@@ -1528,6 +1830,24 @@ $radius-full: 999px;
   min-width: 0;
 }
 
+.store-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: $text-hint;
+}
+
+.meta-sep {
+  color: $text-hint;
+  opacity: 0.5;
+}
+
+.open-hours-tag {
+  font-size: 12px;
+  color: $text-hint;
+}
+
 .store-name-row {
   display: flex;
   align-items: center;
@@ -1599,12 +1919,6 @@ $radius-full: 999px;
   }
 }
 
-.store-price-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 .price-tag {
   font-size: 13px;
   color: $text-secondary;
@@ -1629,17 +1943,54 @@ $radius-full: 999px;
 }
 
 // ============================================
-// Card tags
+// Activity list
 // ============================================
-.card-tags {
+.activity-list {
+  margin-top: 10px;
+  border-top: 1px solid #f3f4f6;
+
+  &.single-activity {
+    .activity-row {
+      padding: 10px 0 0;
+    }
+  }
+}
+
+.activity-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f7f8fa;
+
+  &:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  &:first-child {
+    padding-top: 10px;
+  }
+}
+
+.activity-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.activity-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #f3f4f6;
-  overflow: hidden;
-  max-width: 100%;
+  gap: 5px;
+}
+
+.activity-action {
+  flex-shrink: 0;
 }
 
 .info-chip {
@@ -1666,13 +2017,138 @@ $radius-full: 999px;
   }
 }
 
-// ============================================
-// Card action
-// ============================================
-.card-action {
-  margin-top: 10px;
+
+
+.activity-actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.other-search-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border-radius: $radius-full;
+  background: #f3f4f6;
+  color: $text-secondary;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+
+  &:hover {
+    background: $primary-light;
+    color: $primary;
+  }
+
+  &:active {
+    transform: scale(0.96);
+  }
+}
+
+// 其它搜索 dialog
+.other-search-content {
+  .other-search-input-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .other-search-results {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .other-search-loading {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 36px 0;
+    color: $text-hint;
+    font-size: 14px;
+  }
+
+  .other-search-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 36px 0;
+    color: $text-hint;
+    font-size: 14px;
+  }
+
+  .other-search-result-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f3f4f6;
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  .osr-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  .osr-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .osr-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: $text-primary;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .osr-detail {
+    font-size: 12px;
+    color: $text-hint;
+    margin-top: 4px;
+  }
+
+  .osr-left-num {
+    font-weight: 500;
+
+    &.osr-left-available {
+      color: #22c55e;
+    }
+
+    &.osr-left-soldout {
+      color: #ef4444;
+    }
+  }
 }
 
 .notify-btn {
@@ -1916,6 +2392,22 @@ $radius-full: 999px;
 <style lang="scss">
 // Non-scoped styles for el-dialog
 // append-to-body teleports dialog outside component DOM, breaking scoped styles
+.other-search-dialog.el-dialog {
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+
+  @media screen and (max-width: 768px) {
+    width: 92% !important;
+    margin: 16px auto !important;
+
+    .el-dialog__body {
+      padding: 16px 12px;
+      max-height: 65vh;
+      overflow-y: auto;
+    }
+  }
+}
+
 .monitor-dialog.el-dialog {
   max-width: calc(100vw - 32px);
   box-sizing: border-box;
