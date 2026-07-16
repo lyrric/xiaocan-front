@@ -200,11 +200,32 @@ function handleRegisterSuccessConfirm() {
 }
 
 function copyQuickAccessUrl() {
-  navigator.clipboard.writeText(quickAccessUrl.value).then(() => {
-    ElMessage.success('链接已复制到剪贴板')
-  }).catch(() => {
-    ElMessage.warning('复制失败，请手动复制')
-  })
+   if (navigator.clipboard) {
+    navigator.clipboard.writeText(quickAccessUrl.value).then(() => {
+      ElMessage.success('链接已复制到剪贴板')
+    }).catch(() => {
+      fallbackCopy(quickAccessUrl.value)
+    })
+  } else {
+    fallbackCopy(quickAccessUrl.value)
+  }
+}
+
+function fallbackCopy(name: string) {
+  const textarea = document.createElement('textarea')
+  textarea.value = name
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  try {
+    document.execCommand('copy')
+    ElMessage.success('门店名称已复制')
+  } catch (err) {
+    ElMessage.error('复制失败')
+  } finally {
+    document.body.removeChild(textarea)
+  }
 }
 
 onMounted(() => {

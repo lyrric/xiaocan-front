@@ -1007,6 +1007,12 @@ onBeforeUnmount(() => {
                 <span class="open-hours-tag">{{ group.primary.openHours }}</span>
               </div>
             </div>
+            <div class="store-search-btn" @click="handleOtherSearch(group.primary)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              搜索
+            </div>
           </div>
 
           <!-- Activity list -->
@@ -1035,14 +1041,6 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <div class="activity-actions">
-                <div class="activity-action" v-if="(activeTab === 'xiaochan' || activity.storeId)">
-                  <div class="other-search-btn" @click="handleOtherSearch(activity)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                    </svg>
-                    搜索
-                  </div>
-                </div>
                 <div class="activity-action" v-if="activity.leftNumber <= 0 && (activeTab === 'xiaochan' || activity.storeId)">
                   <div class="notify-btn" @click="handleBook(activity)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -1801,6 +1799,31 @@ $radius-full: 999px;
   align-items: flex-start;
 }
 
+.store-search-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+
+  &:hover {
+    background: #eef2ff;
+    color: #4f6ef7;
+  }
+
+  &:active {
+    transform: scale(0.96);
+  }
+}
+
 .store-avatar {
   width: 64px;
   height: 64px;
@@ -1964,14 +1987,17 @@ $radius-full: 999px;
   padding: 10px 0;
   border-bottom: 1px solid #f7f8fa;
 
-  &:last-child {
+  &:last-of-type {
     border-bottom: none;
     padding-bottom: 0;
   }
+}
 
-  &:first-child {
-    padding-top: 10px;
-  }
+.activity-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .activity-info {
@@ -2015,15 +2041,6 @@ $radius-full: 999px;
     color: #991b1b;
     font-weight: 500;
   }
-}
-
-
-
-.activity-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
 }
 
 .other-search-btn {
