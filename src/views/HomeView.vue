@@ -998,7 +998,6 @@ onBeforeUnmount(() => {
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                   </svg>
                 </span>
-                <span v-if="group.primary.ifNew" class="badge badge-new">新店</span>
                 <span :class="getPlatformClass(group.primary.type)" class="badge">{{ getPlatformName(group.primary.type) }}</span>
               </div>
               <div class="store-meta-row">
@@ -1873,9 +1872,8 @@ $radius-full: 999px;
 
 .store-name-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
-  flex-wrap: wrap;
   margin-bottom: 6px;
 }
 
@@ -1883,10 +1881,14 @@ $radius-full: 999px;
   font-size: 15px;
   font-weight: 600;
   color: $text-primary;
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 55%;
+  word-break: break-all;
+  line-height: 1.35;
 }
 
 .copy-btn {
@@ -1895,6 +1897,7 @@ $radius-full: 999px;
   justify-content: center;
   width: 22px;
   height: 22px;
+  margin-top: 2px;
   border-radius: 4px;
   color: $text-hint;
   cursor: pointer;
@@ -1916,6 +1919,7 @@ $radius-full: 999px;
   display: inline-flex;
   align-items: center;
   padding: 1px 6px;
+  margin-top: 3px;
   border-radius: $radius-full;
   font-size: 11px;
   font-weight: 500;
