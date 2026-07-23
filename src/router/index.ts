@@ -23,6 +23,11 @@ const router = createRouter({
       name: 'notify-history',
       component: () => import('../views/NotifyHistoryView.vue'),
     },
+    {
+      path: '/store-inventory',
+      name: 'store-inventory',
+      component: () => import('../views/StoreInventoryHistoryView.vue'),
+    },
   ],
 })
 
