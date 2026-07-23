@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import api from '../api'
@@ -20,13 +20,15 @@ async function fetchData() {
     const response = await api.get(`/api/store-inventory-history/${uniqueId.value}`)
     if (response.data.success) {
       const data = response.data.data || []
+      loading.value = false
+      await nextTick()
       renderChart(data)
+      return
     }
   } catch {
     // ignore
-  } finally {
-    loading.value = false
   }
+  loading.value = false
 }
 
 function renderChart(data: any[]) {
