@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, inject } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, View, Edit, Delete } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
@@ -11,6 +12,8 @@ const authState = inject<{
   setAuthenticated: () => void
   waitForAuth: () => Promise<void>
 }>('authState')!
+
+const router = useRouter()
 
 const configList = ref<any[]>([])
 const loading = ref(false)
@@ -446,6 +449,18 @@ function viewDetail(config: any) {
   showDetail.value = true
 }
 
+function handleRecord(config: any) {
+  const storeInfo = config.storeExtNotifyConfig?.storeInfo
+  if (!storeInfo) return
+  router.push({
+    path: '/store-inventory',
+    query: {
+      uniqueId: storeInfo.uniqId,
+      name: storeInfo.name,
+    },
+  })
+}
+
 function backToList() {
   showDetail.value = false
   currentDetail.value = null
@@ -600,6 +615,14 @@ onUnmounted(() => {
                 :disabled="loading"
               >
                 运行记录
+              </el-button>
+              <el-button
+                v-if="config.type === 'STORE_ACTIVITY' && config.storeExtNotifyConfig?.storeInfo"
+                size="small"
+                class="record-btn"
+                @click="handleRecord(config)"
+              >
+                记录
               </el-button>
               <el-dropdown trigger="click" @command="(cmd: string) => handleCardCommand(cmd, config)">
                 <el-button size="small" class="more-btn" :disabled="loading">
@@ -1087,6 +1110,22 @@ onUnmounted(() => {
     border-color: #b37feb !important;
     transform: translateY(-2px);
     box-shadow: 0 2px 8px rgba(114, 46, 209, 0.15);
+  }
+}
+
+.record-btn {
+  background-color: #fff7e6 !important;
+  color: #d97706 !important;
+  border-color: #fcd34d !important;
+  border-radius: 8px !important;
+  font-weight: 500;
+  transition: all 0.25s ease;
+
+  &:hover {
+    background-color: #fef3c7 !important;
+    border-color: #fbbf24 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.15);
   }
 }
 
