@@ -455,8 +455,9 @@ async function handleTabChange(tab: 'xiaochan' | 'meituan' | 'favorite') {
   if (tab === 'favorite') {
     meituanHasNextPage.value = false
     pagination.hasNextPage = false
+  } else {
+    await loadFavorites()
   }
-  await loadFavorites()
   await handleSearch(true)
 }
 
@@ -1191,14 +1192,14 @@ onBeforeUnmount(() => {
                 <span v-if="group.primary.exists === false" class="badge not-exist-badge">门店不存在</span>
               </div>
               <div class="store-meta-row">
-                <span class="distance-tag">{{ activeTab === 'xiaochan' ? formatDistance(group.primary.distance) : group.primary.distance }}</span>
+                <span class="distance-tag">{{ group.primary.storeTypeEnum === 'XC_MANJIAN' ? formatDistance(group.primary.distance) : group.primary.distance }}</span>
                 <span class="meta-sep">·</span>
                 <span class="open-hours-tag">{{ group.primary.openHours }}</span>
               </div>
             </div>
             <div class="store-actions">
             <div class="favorite-btn" :class="{ active: isFavorite(group.primary) }" @click.stop="handleFavoriteToggle(group.primary)" title="收藏">
-              <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
                 <path v-if="isFavorite(group.primary)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
                 <path v-else d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z" fill="none" stroke="currentColor" stroke-width="1.5"/>
               </svg>
@@ -1231,7 +1232,7 @@ onBeforeUnmount(() => {
               class="activity-row"
             >
               <div class="activity-info">
-                <span v-if="activeTab === 'xiaochan'" class="price-tag">
+                <span v-if="activity.storeTypeEnum === 'XC_MANJIAN'" class="price-tag">
                   满<em>{{ activity.price }}</em>返<em class="rebate">{{ activity.rebatePrice }}</em>
                 </span>
                 <span v-else class="price-tag">
@@ -1249,7 +1250,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <div class="activity-actions">
-                <div class="activity-action" v-if="activity.leftNumber <= 0 && (activeTab === 'xiaochan' || activity.storeId)">
+                <div class="activity-action" v-if="activity.leftNumber <= 0 && (activity.storeTypeEnum === 'XC_MANJIAN' || activity.storeId)">
                   <div class="notify-btn" @click="handleBook(activity)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -2023,15 +2024,16 @@ $radius-full: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
   background: #f3f4f6;
   color: #9ca3af;
   cursor: pointer;
   transition: all 0.2s;
   -webkit-tap-highlight-color: transparent;
-  margin: 0 auto;
+  margin-top: 2px;
+  flex-shrink: 0;
 
   &:hover {
     background: #fef3c7;
