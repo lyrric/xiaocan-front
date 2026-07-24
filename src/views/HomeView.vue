@@ -17,8 +17,8 @@ const authState = inject<{
 const loading = ref(false)
 const actionLoading = reactive<Record<string, boolean>>({})
 
-// Tab: 'xiaochan' | 'meituan'
-const activeTab = ref<'xiaochan' | 'meituan'>('xiaochan')
+// Tab: 'xiaochan' | 'meituan' | 'favorite'
+const activeTab = ref<'xiaochan' | 'meituan' | 'favorite'>('xiaochan')
 
 const searchForm = reactive({
   name: '',
@@ -48,12 +48,17 @@ const meituanIsLoadingMore = ref(false)
 
 // 搜索框双向绑定：根据 Tab 切换对应 form 的 name 字段
 const currentSearchName = computed({
-  get: () => activeTab.value === 'xiaochan' ? searchForm.name : meituanSearchForm.name,
+  get: () => {
+    if (activeTab.value === 'meituan') {
+      return meituanSearchForm.name
+    }
+    return searchForm.name
+  },
   set: (v: string) => {
-    if (activeTab.value === 'xiaochan') {
-      searchForm.name = v
-    } else {
+    if (activeTab.value === 'meituan') {
       meituanSearchForm.name = v
+    } else {
+      searchForm.name = v
     }
   },
 })
@@ -61,6 +66,8 @@ const currentSearchName = computed({
 let scrollObserver: IntersectionObserver | null = null
 const loadMoreTrigger = ref<HTMLElement | null>(null)
 const storeList = ref<any[]>([])
+const favoriteMap = ref<Map<string, any>>(new Map())
+const favoriteLoading = ref(false)
 
 // Address selection
 const selectedAddress = ref<any>(null)
@@ -273,7 +280,165 @@ async function fetchMeituanList(resetPage = true) {
   }
 }
 
+async function fetchFavoriteList() {
+  if (!selectedAddress.value || !selectedAddress.value.id) {
+    ElMessage.warning('请先选择地址')
+    return
+  }
+
+  loading.value = true
+  storeList.value = []
+  pagination.hasNextPage = false
+  meituanHasNextPage.value = false
+
+  try {
+    const response = await api.post('/api/favorite/stores', {
+      locationId: selectedAddress.value.id,
+      storeType: activeTab.value === 'favorite' ? undefined : undefined,
+    })
+    if (response.data.success) {
+      const newItems: any[] = response.data.data || []
+      storeList.value = newItems
+    } else {
+      ElMessage.error(response.data.msg || '查询失败')
+    }
+  } catch {
+    ElMessage.error('网络错误，请稍后重试')
+  } finally {
+    loading.value = false
+    nextTick(() => {
+      reinitScrollObserver()
+    })
+  }
+}
+
+async function loadFavorites() {
+  if (!selectedAddress.value || !selectedAddress.value.id) {
+    return
+  }
+  const storeType = activeTab.value === 'favorite' ? undefined : activeTab.value === 'xiaochan' ? 'XC_MANJIAN' : 'XC_MTSJ'
+  try {
+    const response = await api.get('/api/favorite/list', {
+      locationId: selectedAddress.value.id,
+      storeType,
+    })
+    if (response.data.success) {
+      const list: any[] = response.data.data || []
+      const map = new Map<string, any>()
+      list.forEach((item) => {
+        const key = getFavoriteKey(item.storeType, item.uniqueId)
+        if (key) {
+          map.set(key, item)
+        }
+      })
+      favoriteMap.value = map
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function getFavoriteKey(storeType: string, uniqId: string) {
+  if (!storeType || !uniqId) return null
+  return `${storeType}-${uniqId}`
+}
+
+function isFavorite(store: any) {
+  if (store.favoriteId) return true
+  const storeType = store.storeTypeEnum || (activeTab.value === 'meituan' ? 'XC_MTSJ' : 'XC_MANJIAN')
+  const key = getFavoriteKey(storeType, store.uniqId)
+  return key ? favoriteMap.value.has(key) : false
+}
+
+function getFavoriteRecord(store: any) {
+  const storeType = store.storeTypeEnum || (activeTab.value === 'meituan' ? 'XC_MTSJ' : 'XC_MANJIAN')
+  const key = getFavoriteKey(storeType, store.uniqId)
+  return key ? favoriteMap.value.get(key) : null
+}
+
+async function handleFavoriteToggle(store: any) {
+  if (!selectedAddress.value || !selectedAddress.value.id) {
+    ElMessage.warning('请先选择地址')
+    return
+  }
+
+  const storeType = store.storeTypeEnum || (activeTab.value === 'meituan' ? 'XC_MTSJ' : 'XC_MANJIAN')
+
+  // 收藏列表模式下直接取消收藏
+  if (store.favoriteId) {
+    await handleRemoveFavorite(store)
+    return
+  }
+
+  const record = getFavoriteRecord(store)
+  if (record) {
+    await handleRemoveFavorite(store)
+  } else {
+    await handleSaveFavorite(store, storeType)
+  }
+}
+
+async function handleRemoveFavorite(store: any) {
+  const storeType = store.storeTypeEnum || (activeTab.value === 'meituan' ? 'XC_MTSJ' : 'XC_MANJIAN')
+  try {
+    const response = await api.post('/api/favorite/remove', {
+      locationId: selectedAddress.value?.id,
+      uniqueId: store.uniqId,
+      storeType,
+    })
+    if (response.data.success) {
+      ElMessage.success('已取消收藏')
+      const key = getFavoriteKey(storeType, store.uniqId)
+      if (key) {
+        favoriteMap.value.delete(key)
+      }
+      if (activeTab.value === 'favorite') {
+        await fetchFavoriteList()
+      }
+    } else {
+      ElMessage.error(response.data.msg || '取消收藏失败')
+    }
+  } catch {
+    ElMessage.error('网络错误，请稍后重试')
+  }
+}
+
+async function handleSaveFavorite(store: any, storeType: string) {
+  try {
+    const response = await api.post('/api/favorite/save', {
+      locationId: selectedAddress.value?.id,
+      uniqueId: store.uniqId,
+      storeType,
+      icon: store.icon,
+      name: store.name,
+      type: store.type,
+      distance: store.distance,
+    })
+    if (response.data.success) {
+      ElMessage.success('收藏成功')
+      await loadFavorites()
+    } else {
+      ElMessage.error(response.data.msg || '收藏失败')
+    }
+  } catch {
+    ElMessage.error('网络错误，请稍后重试')
+  }
+}
+
+function getStoreTypeName(storeType: string) {
+  if (storeType === 'XC_MTSJ') return '美团赏金'
+  if (storeType === 'XC_MANJIAN') return '小蚕满减'
+  return storeType
+}
+
 async function handleSearch(resetPage = true) {
+  if (activeTab.value === 'favorite') {
+    await fetchFavoriteList()
+    return
+  }
+  if (resetPage) {
+    await loadFavorites()
+  }
   if (activeTab.value === 'meituan') {
     await fetchMeituanList(resetPage)
   } else {
@@ -281,10 +446,18 @@ async function handleSearch(resetPage = true) {
   }
 }
 
-function handleTabChange(tab: 'xiaochan' | 'meituan') {
+async function handleTabChange(tab: 'xiaochan' | 'meituan' | 'favorite') {
   activeTab.value = tab
   storeList.value = []
-  handleSearch(true)
+  favoriteMap.value = new Map()
+  pagination.hasNextPage = true
+  meituanHasNextPage.value = true
+  if (tab === 'favorite') {
+    meituanHasNextPage.value = false
+    pagination.hasNextPage = false
+  }
+  await loadFavorites()
+  await handleSearch(true)
 }
 
 function handleSort(orderType: number) {
@@ -298,6 +471,9 @@ function initScrollObserver() {
       scrollObserver = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
+            if (activeTab.value === 'favorite') {
+              return
+            }
             const hasNext = activeTab.value === 'meituan' ? meituanHasNextPage.value : pagination.hasNextPage
             const isLoadingMore = activeTab.value === 'meituan' ? meituanIsLoadingMore.value : pagination.isLoadingMore
             if (
@@ -325,6 +501,9 @@ function reinitScrollObserver() {
 }
 
 async function loadNextPage() {
+  if (activeTab.value === 'favorite') {
+    return
+  }
   if (activeTab.value === 'meituan') {
     if (!meituanHasNextPage.value || meituanIsLoadingMore.value || loading.value) return
     meituanIsLoadingMore.value = true
@@ -560,7 +739,7 @@ async function loadLocalAddresses() {
   }
 }
 
-function handleAddressChange(selAddressId: string) {
+async function handleAddressChange(selAddressId: string) {
   if (selAddressId) {
     const addr = findAddressById(selAddressId)
     if (addr) {
@@ -569,7 +748,7 @@ function handleAddressChange(selAddressId: string) {
       searchForm.latitude = addr.latitude
       searchForm.longitude = addr.longitude
       saveSelectedAddressId(selAddressId)
-      handleSearch()
+      await handleSearch()
     }
   } else {
     selectedAddress.value = null
@@ -815,18 +994,17 @@ onBeforeUnmount(() => {
   <div class="home-page">
     <!-- Sticky header search area -->
     <div class="header">
-      <!-- Tab 切换 -->
+      <!-- 类型下拉框 -->
       <div class="tab-bar">
-        <div
-          class="tab-item"
-          :class="{ active: activeTab === 'xiaochan' }"
-          @click="handleTabChange('xiaochan')"
-        >小蚕满减</div>
-        <div
-          class="tab-item"
-          :class="{ active: activeTab === 'meituan' }"
-          @click="handleTabChange('meituan')"
-        >美团赏金</div>
+        <el-select
+          v-model="activeTab"
+          class="tab-select"
+          @change="handleTabChange"
+        >
+          <el-option label="小蚕满减" value="xiaochan" />
+          <el-option label="美团赏金" value="meituan" />
+          <el-option label="收藏门店" value="favorite" />
+        </el-select>
       </div>
 
       <!-- Top bar: address + location icon -->
@@ -1009,6 +1187,8 @@ onBeforeUnmount(() => {
                   </svg>
                 </span>
                 <span :class="getPlatformClass(group.primary.type)" class="badge">{{ getPlatformName(group.primary.type) }}</span>
+                <span class="badge store-type-badge">{{ getStoreTypeName(group.primary.storeTypeEnum) }}</span>
+                <span v-if="group.primary.exists === false" class="badge not-exist-badge">门店不存在</span>
               </div>
               <div class="store-meta-row">
                 <span class="distance-tag">{{ activeTab === 'xiaochan' ? formatDistance(group.primary.distance) : group.primary.distance }}</span>
@@ -1017,23 +1197,34 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <div class="store-actions">
-            <div class="store-search-btn" @click="handleOtherSearch(group.primary)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <div class="favorite-btn" :class="{ active: isFavorite(group.primary) }" @click.stop="handleFavoriteToggle(group.primary)" title="收藏">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                <path v-if="isFavorite(group.primary)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                <path v-else d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z" fill="none" stroke="currentColor" stroke-width="1.5"/>
               </svg>
-              搜索
             </div>
-            <div class="store-record-btn" @click="handleRecord(group.primary)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-              </svg>
-              记录
-            </div>
+            <template v-if="group.primary.exists !== false">
+              <div class="store-search-btn" @click="handleOtherSearch(group.primary)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                搜索
+              </div>
+              <div class="store-record-btn" @click="handleRecord(group.primary)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+                记录
+              </div>
+            </template>
           </div>
           </div>
 
           <!-- Activity list -->
-          <div class="activity-list" :class="{ 'single-activity': group.activities.length === 1 }">
+          <div v-if="group.primary.exists === false" class="not-exist-tip">
+            门店已不存在，可点击右上角五角星取消收藏
+          </div>
+          <div v-else class="activity-list" :class="{ 'single-activity': group.activities.length === 1 }">
             <div
               v-for="activity in group.activities"
               :key="activity.promotionId"
@@ -1331,25 +1522,30 @@ $radius-full: 999px;
   border-radius: $radius-sm;
   padding: 3px;
   margin-bottom: 10px;
-}
 
-.tab-item {
-  flex: 1;
-  text-align: center;
-  padding: 7px 0;
-  border-radius: 6px;
-  font-size: 14px;
-  color: $text-secondary;
-  cursor: pointer;
-  transition: all 0.2s;
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
+  .tab-select {
+    width: 100%;
 
-  &.active {
-    background: #fff;
-    color: $text-primary;
-    font-weight: 600;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    :deep(.el-input__wrapper) {
+      background: transparent;
+      box-shadow: none !important;
+      padding: 0 8px;
+    }
+
+    :deep(.el-input__inner) {
+      height: 36px;
+      line-height: 36px;
+      font-size: 14px;
+      font-weight: 600;
+      color: $text-primary;
+      text-align: center;
+    }
+
+    :deep(.el-input__suffix) {
+      .el-select__caret {
+        color: $text-secondary;
+      }
+    }
   }
 }
 
@@ -1823,6 +2019,34 @@ $radius-full: 999px;
   flex-shrink: 0;
 }
 
+.favorite-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  margin: 0 auto;
+
+  &:hover {
+    background: #fef3c7;
+    color: #f59e0b;
+  }
+
+  &:active {
+    transform: scale(0.96);
+  }
+
+  &.active {
+    color: #f59e0b;
+  }
+}
+
 .store-search-btn {
   display: inline-flex;
   align-items: center;
@@ -1976,6 +2200,16 @@ $radius-full: 999px;
   flex-shrink: 0;
 }
 
+.store-type-badge {
+  background: #f3e8ff;
+  color: #7c3aed;
+}
+
+.not-exist-badge {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .badge-new {
   background: linear-gradient(135deg, #ff6b6b, #ff8e53);
   color: #fff;
@@ -2031,6 +2265,15 @@ $radius-full: 999px;
       padding: 10px 0 0;
     }
   }
+}
+
+.not-exist-tip {
+  margin-top: 10px;
+  padding: 12px 0;
+  border-top: 1px solid #f3f4f6;
+  font-size: 13px;
+  color: #9ca3af;
+  text-align: center;
 }
 
 .activity-row {
