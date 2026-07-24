@@ -38,16 +38,66 @@ function renderChart(data: any[]) {
     chartInstance = echarts.init(chartRef.value)
   }
 
-  const times = data.map((item: any) => item.createTime)
-  const inventories = data.map((item: any) => item.inventory)
+  // 按 sku_id 分组，同时保留 sku_name 用于图例展示
+  const groupMap = new Map<string, { name: string; items: any[] }>()
+  for (const item of data) {
+    const key = item.skuId || ''
+    if (!groupMap.has(key)) {
+      groupMap.set(key, { name: item.skuName || key, items: [] })
+    }
+    groupMap.get(key)!.items.push(item)
+  }
+
+  // 收集所有不重复的时间点并排序，作为统一横轴
+  const timeSet = new Set<string>()
+  for (const item of data) {
+    if (item.createTime) {
+      timeSet.add(item.createTime)
+    }
+  }
+  const times = Array.from(timeSet).sort()
+
+  const colors = ['#4f6ef7', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316']
+
+  const series: any[] = []
+  let colorIndex = 0
+  for (const [, group] of groupMap) {
+    const inventoryMap = new Map<string, number>()
+    for (const item of group.items) {
+      inventoryMap.set(item.createTime, item.inventory)
+    }
+    const color = colors[colorIndex % colors.length]
+    series.push({
+      name: group.name,
+      data: times.map(t => inventoryMap.get(t) ?? null),
+      type: 'line',
+      smooth: true,
+      symbol: times.length > 20 ? 'none' : 'circle',
+      symbolSize: 6,
+      lineStyle: {
+        color,
+        width: 2,
+      },
+      itemStyle: {
+        color,
+      },
+      areaStyle: {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: color + '33' },
+          { offset: 1, color: color + '05' },
+        ]),
+      },
+    })
+    colorIndex++
+  }
 
   chartInstance.setOption({
     tooltip: {
       trigger: 'axis',
-      formatter: (params: any) => {
-        const p = params[0]
-        return `${p.axisValue}<br/>库存：${p.value}`
-      },
+    },
+    legend: {
+      top: 0,
+      data: [...groupMap.values()].map(g => g.name),
     },
     grid: {
       left: '3%',
@@ -61,7 +111,7 @@ function renderChart(data: any[]) {
       data: times,
       boundaryGap: false,
       axisLabel: {
-        rotate: data.length > 10 ? 45 : 0,
+        rotate: times.length > 10 ? 45 : 0,
         fontSize: 12,
         color: '#6b7280',
       },
@@ -81,29 +131,8 @@ function renderChart(data: any[]) {
         lineStyle: { color: '#f3f4f6' },
       },
     },
-    series: [
-      {
-        data: inventories,
-        type: 'line',
-        smooth: true,
-        symbol: data.length > 20 ? 'none' : 'circle',
-        symbolSize: 6,
-        lineStyle: {
-          color: '#4f6ef7',
-          width: 2,
-        },
-        itemStyle: {
-          color: '#4f6ef7',
-        },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(79, 110, 247, 0.25)' },
-            { offset: 1, color: 'rgba(79, 110, 247, 0.02)' },
-          ]),
-        },
-      },
-    ],
-  })
+    series,
+  }, true)
 }
 
 function goBack() {
