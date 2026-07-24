@@ -1,3 +1,9 @@
+<script lang="ts">
+export default {
+  name: 'HomeView',
+}
+</script>
+
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, inject } from 'vue'
 import { useRouter } from 'vue-router'

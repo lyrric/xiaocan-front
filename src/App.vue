@@ -29,7 +29,11 @@ provide('authState', {
 <template>
   <div class="container">
     <NavBar />
-    <router-view />
+    <router-view v-slot="{ Component }">
+      <keep-alive include="HomeView">
+        <component :is="Component" />
+      </keep-alive>
+    </router-view>
   </div>
 </template>
 
