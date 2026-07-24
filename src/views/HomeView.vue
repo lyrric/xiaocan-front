@@ -1190,35 +1190,33 @@ onBeforeUnmount(() => {
                 <span :class="getPlatformClass(group.primary.type)" class="badge">{{ getPlatformName(group.primary.type) }}</span>
                 <span class="badge store-type-badge">{{ getStoreTypeName(group.primary.storeTypeEnum) }}</span>
                 <span v-if="group.primary.exists === false" class="badge not-exist-badge">门店不存在</span>
+                <span class="favorite-btn" :class="{ active: isFavorite(group.primary) }" @click.stop="handleFavoriteToggle(group.primary)" title="收藏">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                    <path v-if="isFavorite(group.primary)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                    <path v-else d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                  </svg>
+                </span>
               </div>
               <div class="store-meta-row">
-                <span class="distance-tag">{{ group.primary.storeTypeEnum === 'XC_MANJIAN' ? formatDistance(group.primary.distance) : group.primary.distance }}</span>
-                <span class="meta-sep">·</span>
-                <span class="open-hours-tag">{{ group.primary.openHours }}</span>
+                <div class="store-meta-left">
+                  <span class="distance-tag">{{ group.primary.storeTypeEnum === 'XC_MANJIAN' ? formatDistance(group.primary.distance) : group.primary.distance }}</span>
+                  <span class="meta-sep">·</span>
+                  <span class="open-hours-tag">{{ group.primary.openHours }}</span>
+                </div>
+                <div v-if="group.primary.exists !== false" class="store-meta-actions">
+                  <div class="store-search-btn" @click="handleOtherSearch(group.primary)" title="搜索">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                  </div>
+                  <div class="store-record-btn" @click="handleRecord(group.primary)" title="记录">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                  </div>
+                </div>
               </div>
             </div>
-            <div class="store-actions">
-            <div class="favorite-btn" :class="{ active: isFavorite(group.primary) }" @click.stop="handleFavoriteToggle(group.primary)" title="收藏">
-              <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-                <path v-if="isFavorite(group.primary)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-                <path v-else d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z" fill="none" stroke="currentColor" stroke-width="1.5"/>
-              </svg>
-            </div>
-            <template v-if="group.primary.exists !== false">
-              <div class="store-search-btn" @click="handleOtherSearch(group.primary)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-                搜索
-              </div>
-              <div class="store-record-btn" @click="handleRecord(group.primary)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-                </svg>
-                记录
-              </div>
-            </template>
-          </div>
           </div>
 
           <!-- Activity list -->
@@ -2052,13 +2050,12 @@ $radius-full: 999px;
 .store-search-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 14px;
-  border-radius: 999px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
   background: #f3f4f6;
   color: #6b7280;
-  font-size: 13px;
-  font-weight: 500;
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.2s;
@@ -2077,13 +2074,12 @@ $radius-full: 999px;
 .store-record-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 14px;
-  border-radius: 999px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
   background: #f3f4f6;
   color: #6b7280;
-  font-size: 13px;
-  font-weight: 500;
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.2s;
@@ -2131,9 +2127,24 @@ $radius-full: 999px;
 .store-meta-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   font-size: 12px;
   color: $text-hint;
+}
+
+.store-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.store-meta-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .meta-sep {
