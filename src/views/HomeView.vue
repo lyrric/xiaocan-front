@@ -52,17 +52,29 @@ const meituanSearchForm = reactive({
 const meituanHasNextPage = ref(true)
 const meituanIsLoadingMore = ref(false)
 
+// 收藏门店专用状态
+const favoriteSearchForm = reactive({
+  name: '',
+  pageNum: 1,
+  pageSize: 30,
+})
+
 // 搜索框双向绑定：根据 Tab 切换对应 form 的 name 字段
 const currentSearchName = computed({
   get: () => {
     if (activeTab.value === 'meituan') {
       return meituanSearchForm.name
     }
+    if (activeTab.value === 'favorite') {
+      return favoriteSearchForm.name
+    }
     return searchForm.name
   },
   set: (v: string) => {
     if (activeTab.value === 'meituan') {
       meituanSearchForm.name = v
+    } else if (activeTab.value === 'favorite') {
+      favoriteSearchForm.name = v
     } else {
       searchForm.name = v
     }
@@ -287,32 +299,54 @@ async function fetchMeituanList(resetPage = true) {
   }
 }
 
-async function fetchFavoriteList() {
+async function fetchFavoriteList(resetPage = true) {
   if (!selectedAddress.value || !selectedAddress.value.id) {
     ElMessage.warning('请先选择地址')
     return
   }
 
-  loading.value = true
-  storeList.value = []
-  pagination.hasNextPage = false
-  meituanHasNextPage.value = false
+  if (resetPage) {
+    favoriteSearchForm.pageNum = 1
+    pagination.currentPage = 1
+    pagination.hasNextPage = true
+  }
+
+  loading.value = resetPage
 
   try {
     const response = await api.post('/api/favorite/stores', {
       locationId: selectedAddress.value.id,
-      storeType: activeTab.value === 'favorite' ? undefined : undefined,
+      storeType: undefined,
+      storeName: favoriteSearchForm.name,
+      pageNum: favoriteSearchForm.pageNum,
+      pageSize: favoriteSearchForm.pageSize,
     })
     if (response.data.success) {
-      const newItems: any[] = response.data.data || []
-      storeList.value = newItems
+      const pageData = response.data.data || {}
+      const newItems: any[] = pageData.records || []
+      if (resetPage) {
+        storeList.value = newItems
+      } else {
+        storeList.value = [...storeList.value, ...newItems]
+      }
+      const total = pageData.total || 0
+      pagination.hasNextPage = newItems.length >= favoriteSearchForm.pageSize && storeList.value.length < total
     } else {
       ElMessage.error(response.data.msg || '查询失败')
+      if (!resetPage) {
+        pagination.currentPage--
+        favoriteSearchForm.pageNum = pagination.currentPage
+      }
     }
   } catch {
     ElMessage.error('网络错误，请稍后重试')
+    if (!resetPage) {
+      pagination.currentPage--
+      favoriteSearchForm.pageNum = pagination.currentPage
+    }
   } finally {
     loading.value = false
+    pagination.isLoadingMore = false
     nextTick(() => {
       reinitScrollObserver()
     })
@@ -461,7 +495,8 @@ async function handleTabChange(tab: 'xiaochan' | 'meituan' | 'favorite') {
   meituanHasNextPage.value = true
   if (tab === 'favorite') {
     meituanHasNextPage.value = false
-    pagination.hasNextPage = false
+    favoriteSearchForm.pageNum = 1
+    pagination.currentPage = 1
   } else {
     await loadFavorites()
   }
@@ -479,9 +514,6 @@ function initScrollObserver() {
       scrollObserver = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
-            if (activeTab.value === 'favorite') {
-              return
-            }
             const hasNext = activeTab.value === 'meituan' ? meituanHasNextPage.value : pagination.hasNextPage
             const isLoadingMore = activeTab.value === 'meituan' ? meituanIsLoadingMore.value : pagination.isLoadingMore
             if (
@@ -509,13 +541,16 @@ function reinitScrollObserver() {
 }
 
 async function loadNextPage() {
-  if (activeTab.value === 'favorite') {
-    return
-  }
   if (activeTab.value === 'meituan') {
     if (!meituanHasNextPage.value || meituanIsLoadingMore.value || loading.value) return
     meituanIsLoadingMore.value = true
     await fetchMeituanList(false)
+  } else if (activeTab.value === 'favorite') {
+    if (!pagination.hasNextPage || pagination.isLoadingMore || loading.value) return
+    pagination.isLoadingMore = true
+    pagination.currentPage++
+    favoriteSearchForm.pageNum = pagination.currentPage
+    await fetchFavoriteList(false)
   } else {
     if (!pagination.hasNextPage || pagination.isLoadingMore || loading.value) return
     pagination.isLoadingMore = true
@@ -1011,17 +1046,23 @@ onBeforeUnmount(() => {
   <div class="home-page">
     <!-- Sticky header search area -->
     <div class="header">
-      <!-- 类型下拉框 -->
+      <!-- 类型切换 Tab -->
       <div class="tab-bar">
-        <el-select
-          v-model="activeTab"
-          class="tab-select"
-          @change="handleTabChange"
-        >
-          <el-option label="小蚕满减" value="xiaochan" />
-          <el-option label="美团赏金" value="meituan" />
-          <el-option label="收藏门店" value="favorite" />
-        </el-select>
+        <div
+          class="tab-item"
+          :class="{ active: activeTab === 'xiaochan' }"
+          @click="handleTabChange('xiaochan')"
+        >小蚕满减</div>
+        <div
+          class="tab-item"
+          :class="{ active: activeTab === 'meituan' }"
+          @click="handleTabChange('meituan')"
+        >美团赏金</div>
+        <div
+          class="tab-item"
+          :class="{ active: activeTab === 'favorite' }"
+          @click="handleTabChange('favorite')"
+        >收藏门店</div>
       </div>
 
       <!-- Top bar: address + location icon -->
@@ -1537,28 +1578,28 @@ $radius-full: 999px;
   padding: 3px;
   margin-bottom: 10px;
 
-  .tab-select {
-    width: 100%;
+  .tab-item {
+    flex: 1;
+    text-align: center;
+    height: 36px;
+    line-height: 36px;
+    font-size: 14px;
+    font-weight: 600;
+    color: $text-secondary;
+    border-radius: $radius-sm;
+    cursor: pointer;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
 
-    :deep(.el-input__wrapper) {
-      background: transparent;
-      box-shadow: none !important;
-      padding: 0 8px;
+    &.active {
+      background: #fff;
+      color: $primary;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     }
 
-    :deep(.el-input__inner) {
-      height: 36px;
-      line-height: 36px;
-      font-size: 14px;
-      font-weight: 600;
-      color: $text-primary;
-      text-align: center;
-    }
-
-    :deep(.el-input__suffix) {
-      .el-select__caret {
-        color: $text-secondary;
-      }
+    &:active {
+      transform: scale(0.97);
     }
   }
 }
