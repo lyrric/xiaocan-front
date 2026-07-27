@@ -630,7 +630,7 @@ function getPlatformClass(type: number) {
 }
 
 function getRebateConditionText(condition: number) {
-  const conditions: Record<number, string> = { 99: '无需评价', 2: '图文' }
+  const conditions: Record<number, string> = { 99: '无需评价', 2: '图文评价' }
   return conditions[condition] || '其他'
 }
 
@@ -961,7 +961,6 @@ async function handleNotifyConfigSave() {
       storeExtNotifyConfig: {
         storeInfo: {
           name: currentNotifyStore.value.name,
-          storeId: currentNotifyStore.value.storeId,
           uniqId: currentNotifyStore.value.uniqId,
           storeTypeEnum: currentNotifyStore.value.storeTypeEnum,
           type: currentNotifyStore.value.type,
