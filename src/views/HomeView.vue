@@ -1115,7 +1115,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- Sort chips - horizontal scroll（仅小蚕满减显示） -->
-      <div v-if="activeTab === 'xiaochan'" class="sort-chips">
+      <div v-if="false" class="sort-chips">
         <div
           class="chip"
           :class="{ active: searchForm.orderType === 1 }"
