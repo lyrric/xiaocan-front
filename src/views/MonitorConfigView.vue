@@ -216,17 +216,6 @@ function getPlatformNameById(type: number) {
   }
 }
 
-function getRebateConditionText(condition: number) {
-  switch (condition) {
-    case 99:
-      return '无需评价'
-    case 2:
-      return '图文评价'
-    default:
-      return '未知条件'
-  }
-}
-
 function getFrequencyText(frequency: string) {
   switch (frequency) {
     case 'DAILY':
@@ -609,11 +598,6 @@ onUnmounted(() => {
                   <span>距离：{{ config.storeExtNotifyConfig.storeInfo.distance }}</span>
                 </p>
                 <p class="info-item">
-                  <span
-                    >满返：满{{ config.storeExtNotifyConfig.storeInfo.price }}返{{ config.storeExtNotifyConfig.storeInfo.rebatePrice }}</span
-                  >
-                </p>
-                <p class="info-item">
                   <span>提醒频率：{{ getFrequencyText(config.storeExtNotifyConfig.remindFrequency) }}</span>
                 </p>
               </template>
@@ -738,22 +722,6 @@ onUnmounted(() => {
             <div class="detail-item">
               <label>距离：</label>
               <span>{{ currentDetail.storeExtNotifyConfig.storeInfo.distance }}</span>
-            </div>
-            <div class="detail-item">
-              <label>满返金额：</label>
-              <span
-                >满{{ currentDetail.storeExtNotifyConfig.storeInfo.price }}返{{
-                  currentDetail.storeExtNotifyConfig.storeInfo.rebatePrice
-                }}</span
-              >
-            </div>
-            <div class="detail-item">
-              <label>好评条件：</label>
-              <span>{{
-                getRebateConditionText(
-                  currentDetail.storeExtNotifyConfig.storeInfo.rebateCondition,
-                )
-              }}</span>
             </div>
             <div class="detail-item">
               <label>提醒频率：</label>

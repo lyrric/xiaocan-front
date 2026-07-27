@@ -959,7 +959,15 @@ async function handleNotifyConfigSave() {
         ? (notifyConfigForm.weeks.length > 0 ? notifyConfigForm.weeks.join(',') : null)
         : notifyConfigForm.weeks.join(','),
       storeExtNotifyConfig: {
-        storeInfo: currentNotifyStore.value,
+        storeInfo: {
+          name: currentNotifyStore.value.name,
+          storeId: currentNotifyStore.value.storeId,
+          uniqId: currentNotifyStore.value.uniqId,
+          storeTypeEnum: currentNotifyStore.value.storeTypeEnum,
+          type: currentNotifyStore.value.type,
+          icon: currentNotifyStore.value.icon,
+          distance: currentNotifyStore.value.distance,
+        },
         remindFrequency: notifyConfigForm.remindFrequency,
       },
     }
@@ -1209,17 +1217,30 @@ onBeforeUnmount(() => {
                   <span :class="getPlatformClass(group.primary.type)" class="badge">{{ getPlatformName(group.primary.type) }}</span>
                   <span class="badge store-type-badge">{{ getStoreTypeName(group.primary.storeTypeEnum) }}</span>
                 </div>
-                <div v-if="group.primary.exists !== false" class="store-meta-actions">
-                  <div class="store-search-btn" @click="handleOtherSearch(group.primary)" title="搜索">
+                <div class="store-meta-actions">
+                  <div
+                    v-if="group.primary.storeTypeEnum !== 'XC_MTSJ'"
+                    class="store-notify-btn"
+                    @click.stop="handleBook(group.primary)"
+                    title="到货提醒"
+                  >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
                     </svg>
                   </div>
-                  <div class="store-record-btn" @click="handleRecord(group.primary)" title="记录">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-                    </svg>
-                  </div>
+                  <template v-if="group.primary.exists !== false">
+                    <div class="store-search-btn" @click="handleOtherSearch(group.primary)" title="搜索">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                      </svg>
+                    </div>
+                    <div class="store-record-btn" @click="handleRecord(group.primary)" title="记录">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                      </svg>
+                    </div>
+                  </template>
                 </div>
               </div>
             </div>
@@ -1251,17 +1272,6 @@ onBeforeUnmount(() => {
                   >
                     {{ activity.leftNumber > 0 ? '剩余 ' + activity.leftNumber : '已售罄' }}
                   </span>
-                </div>
-              </div>
-              <div class="activity-actions">
-                <div class="activity-action" v-if="activity.leftNumber <= 0 && (activity.storeTypeEnum === 'XC_MANJIAN' || activity.storeId)">
-                  <div class="notify-btn" @click="handleBook(activity)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                    </svg>
-                    到货提醒
-                  </div>
                 </div>
               </div>
             </div>
@@ -2488,6 +2498,30 @@ $radius-full: 999px;
     &.osr-left-soldout {
       color: #ef4444;
     }
+  }
+}
+
+.store-notify-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+
+  &:hover {
+    background: #fef3c7;
+    color: #d97706;
+  }
+
+  &:active {
+    transform: scale(0.96);
   }
 }
 
