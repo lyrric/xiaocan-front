@@ -1369,14 +1369,6 @@ onBeforeUnmount(() => {
               </div>
               <div class="store-preview-info">
                 <div class="store-preview-name">{{ currentNotifyStore.name }}</div>
-                <div class="store-preview-detail">
-                  <template v-if="activeTab === 'xiaochan'">
-                    满{{ currentNotifyStore.price }}返{{ currentNotifyStore.rebatePrice }}元
-                  </template>
-                  <template v-else>
-                    返{{ (currentNotifyStore.rebateRatio * 100).toFixed(0) }}% 最高{{ currentNotifyStore.rebateMax }}元
-                  </template>
-                </div>
               </div>
             </div>
 
