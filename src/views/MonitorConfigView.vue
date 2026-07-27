@@ -63,6 +63,7 @@ const form = reactive({
   endHour: 22,
   weeks: [] as string[],
   cron: '',
+  remindFrequency: 'ONCE',
   minimumPayExtNotifyConfig: {
     minimumPay: 1,
   },
@@ -226,6 +227,17 @@ function getRebateConditionText(condition: number) {
   }
 }
 
+function getFrequencyText(frequency: string) {
+  switch (frequency) {
+    case 'DAILY':
+      return '每日提醒'
+    case 'NONE':
+      return '不提醒'
+    default:
+      return '只提醒一次'
+  }
+}
+
 async function loadConfigList() {
   loading.value = true
   try {
@@ -262,6 +274,7 @@ function resetForm() {
   form.endHour = 22
   form.weeks = []
   form.cron = ''
+  form.remindFrequency = 'ONCE'
   form.minimumPayExtNotifyConfig = { minimumPay: 1 }
   form.storeKeywordExtNotifyConfig = { keyword: '', limitDistance: true }
   cronCollapseActive.value = []
@@ -287,6 +300,7 @@ function showEditDialog(config: any) {
   form.endHour = config.endHour ?? 22
   form.weeks = config.weeks ? config.weeks.split(',') : []
   form.cron = config.cron || ''
+  form.remindFrequency = config.storeExtNotifyConfig?.remindFrequency || 'ONCE'
   cronCollapseActive.value = form.cron ? ['cron'] : []
   if (config.type === 'MINIMUM_PAY' && config.minimumPayExtNotifyConfig) {
     form.minimumPayExtNotifyConfig.minimumPay = config.minimumPayExtNotifyConfig.minimumPay
@@ -319,7 +333,10 @@ function submitForm() {
             requestData.minimumPayExtNotifyConfig = form.minimumPayExtNotifyConfig
           }
           if (currentEditConfig.value.type === 'STORE_ACTIVITY') {
-            requestData.storeExtNotifyConfig = currentEditConfig.value.storeExtNotifyConfig
+            requestData.storeExtNotifyConfig = {
+              ...currentEditConfig.value.storeExtNotifyConfig,
+              remindFrequency: form.remindFrequency,
+            }
           }
           if (currentEditConfig.value.type === 'STORE_KEYWORD') {
             requestData.storeKeywordExtNotifyConfig = form.storeKeywordExtNotifyConfig
@@ -596,6 +613,9 @@ onUnmounted(() => {
                     >满返：满{{ config.storeExtNotifyConfig.storeInfo.price }}返{{ config.storeExtNotifyConfig.storeInfo.rebatePrice }}</span
                   >
                 </p>
+                <p class="info-item">
+                  <span>提醒频率：{{ getFrequencyText(config.storeExtNotifyConfig.remindFrequency) }}</span>
+                </p>
               </template>
             </div>
 
@@ -735,6 +755,10 @@ onUnmounted(() => {
                 )
               }}</span>
             </div>
+            <div class="detail-item">
+              <label>提醒频率：</label>
+              <span>{{ getFrequencyText(currentDetail.storeExtNotifyConfig.remindFrequency) }}</span>
+            </div>
           </div>
         </div>
 
@@ -861,6 +885,17 @@ onUnmounted(() => {
               <p class="cron-tip">填写后将完全按 cron 执行，无需设置开始/结束时间和运行星期。</p>
             </el-collapse-item>
           </el-collapse>
+        </el-form-item>
+
+        <el-form-item
+          v-if="isEdit && currentEditConfig?.type === 'STORE_ACTIVITY'"
+          label="提醒频率"
+        >
+          <el-radio-group v-model="form.remindFrequency">
+            <el-radio label="ONCE" value="ONCE">只提醒一次</el-radio>
+            <el-radio label="DAILY" value="DAILY">每日提醒</el-radio>
+            <el-radio label="NONE" value="NONE">不提醒</el-radio>
+          </el-radio-group>
         </el-form-item>
 
         <!-- 最小实付金额：新增且类型为 MINIMUM_PAY 时显示，编辑时仅 MINIMUM_PAY 类型显示 -->

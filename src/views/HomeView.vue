@@ -93,6 +93,7 @@ const notifyConfigForm = reactive({
   endHour: 22,
   weeks: [] as string[],
   cron: '',
+  remindFrequency: 'ONCE',
 })
 const notifyConfigCronCollapseActive = ref<string[]>([])
 const notifyConfigRules = {
@@ -629,7 +630,7 @@ function getPlatformClass(type: number) {
 }
 
 function getRebateConditionText(condition: number) {
-  const conditions: Record<number, string> = { 99: '无需评价', 2: '图文评价' }
+  const conditions: Record<number, string> = { 99: '无需评价', 2: '图文' }
   return conditions[condition] || '其他'
 }
 
@@ -923,6 +924,7 @@ function handleDialogClose() {
   notifyConfigForm.endHour = 22
   notifyConfigForm.weeks = []
   notifyConfigForm.cron = ''
+  notifyConfigForm.remindFrequency = 'ONCE'
   notifyConfigCronCollapseActive.value = []
 }
 
@@ -958,6 +960,7 @@ async function handleNotifyConfigSave() {
         : notifyConfigForm.weeks.join(','),
       storeExtNotifyConfig: {
         storeInfo: currentNotifyStore.value,
+        remindFrequency: notifyConfigForm.remindFrequency,
       },
     }
     const response = await api.post('/api/notify/config', configData)
@@ -1193,9 +1196,6 @@ onBeforeUnmount(() => {
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                   </svg>
                 </span>
-                <span :class="getPlatformClass(group.primary.type)" class="badge">{{ getPlatformName(group.primary.type) }}</span>
-                <span class="badge store-type-badge">{{ getStoreTypeName(group.primary.storeTypeEnum) }}</span>
-                <span v-if="group.primary.exists === false" class="badge not-exist-badge">门店不存在</span>
                 <span class="favorite-btn" :class="{ active: isFavorite(group.primary) }" @click.stop="handleFavoriteToggle(group.primary)" title="收藏">
                   <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
                     <path v-if="isFavorite(group.primary)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
@@ -1206,8 +1206,8 @@ onBeforeUnmount(() => {
               <div class="store-meta-row">
                 <div class="store-meta-left">
                   <span class="distance-tag">{{ group.primary.storeTypeEnum === 'XC_MANJIAN' ? formatDistance(group.primary.distance) : group.primary.distance }}</span>
-                  <span class="meta-sep">·</span>
-                  <span class="open-hours-tag">{{ group.primary.openHours }}</span>
+                  <span :class="getPlatformClass(group.primary.type)" class="badge">{{ getPlatformName(group.primary.type) }}</span>
+                  <span class="badge store-type-badge">{{ getStoreTypeName(group.primary.storeTypeEnum) }}</span>
                 </div>
                 <div v-if="group.primary.exists !== false" class="store-meta-actions">
                   <div class="store-search-btn" @click="handleOtherSearch(group.primary)" title="搜索">
@@ -1227,7 +1227,7 @@ onBeforeUnmount(() => {
 
           <!-- Activity list -->
           <div v-if="group.primary.exists === false" class="not-exist-tip">
-            门店已不存在，可点击右上角五角星取消收藏
+            门店活动当前不存在
           </div>
           <div v-else class="activity-list" :class="{ 'single-activity': group.activities.length === 1 }">
             <div
@@ -1427,6 +1427,14 @@ onBeforeUnmount(() => {
                     <p class="cron-tip">填写后将完全按 cron 执行，无需设置开始/结束时间和运行星期。</p>
                   </el-collapse-item>
                 </el-collapse>
+              </el-form-item>
+
+              <el-form-item label="提醒频率">
+                <el-radio-group v-model="notifyConfigForm.remindFrequency">
+                  <el-radio label="ONCE" value="ONCE">只提醒一次</el-radio>
+                  <el-radio label="DAILY" value="DAILY">每日提醒</el-radio>
+                  <el-radio label="NONE" value="NONE">不提醒</el-radio>
+                </el-radio-group>
               </el-form-item>
             </el-form>
           </div>
