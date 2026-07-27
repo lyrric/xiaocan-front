@@ -2220,7 +2220,6 @@ $radius-full: 999px;
   display: inline-flex;
   align-items: center;
   padding: 1px 6px;
-  margin-top: 3px;
   border-radius: $radius-full;
   font-size: 11px;
   font-weight: 500;
