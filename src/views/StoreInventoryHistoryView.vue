@@ -56,12 +56,12 @@ function renderChart(data: any[]) {
   const usedNames = new Set<string>()
   for (const g of groupMap.values()) {
     if ((nameCount.get(g.name) || 0) > 1) {
-      const disambiguated = ''
       let n = 1
+      let disambiguated = ''
       do {
-         n++
-        const disambiguated = `${g.name}(#${n})`
-      } while (!usedNames.has(disambiguated))
+        n++
+        disambiguated = `${g.name}(#${n})`
+      } while (usedNames.has(disambiguated))
       g.name = disambiguated
     }
     usedNames.add(g.name)
