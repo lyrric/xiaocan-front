@@ -61,7 +61,7 @@ function renderChart(data: any[]) {
       do {
          n++
         const disambiguated = `${g.name}(#${n})`
-      } while (usedNames.has(disambiguated))
+      } while (!usedNames.has(disambiguated))
       g.name = disambiguated
     }
     usedNames.add(g.name)
