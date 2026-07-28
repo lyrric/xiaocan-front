@@ -39,13 +39,32 @@ function renderChart(data: any[]) {
   }
 
   // 按 sku_id 分组，同时保留 sku_name 用于图例展示
-  const groupMap = new Map<string, { name: string; items: any[] }>()
+  const groupMap = new Map<string, { id: string; name: string; items: any[] }>()
   for (const item of data) {
     const key = item.skuId || ''
     if (!groupMap.has(key)) {
-      groupMap.set(key, { name: item.skuName || key, items: [] })
+      groupMap.set(key, { id: key, name: item.skuName || key, items: [] })
     }
     groupMap.get(key)!.items.push(item)
+  }
+
+  // 同名不同 sku_id 时图例会重名导致只显示一条，这里追加 sku_id 后缀去重
+  const nameCount = new Map<string, number>()
+  for (const g of groupMap.values()) {
+    nameCount.set(g.name, (nameCount.get(g.name) || 0) + 1)
+  }
+  const usedNames = new Set<string>()
+  for (const g of groupMap.values()) {
+    if ((nameCount.get(g.name) || 0) > 1) {
+      let disambiguated = `${g.name}(${g.id})`
+      let n = 2
+      while (usedNames.has(disambiguated)) {
+        disambiguated = `${g.name}(${g.id}#${n})`
+        n++
+      }
+      g.name = disambiguated
+    }
+    usedNames.add(g.name)
   }
 
   // 收集所有不重复的时间点并排序，作为统一横轴
