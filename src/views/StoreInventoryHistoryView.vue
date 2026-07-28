@@ -56,12 +56,12 @@ function renderChart(data: any[]) {
   const usedNames = new Set<string>()
   for (const g of groupMap.values()) {
     if ((nameCount.get(g.name) || 0) > 1) {
-      let disambiguated = `${g.name}(${g.id})`
-      let n = 2
-      while (usedNames.has(disambiguated)) {
-        disambiguated = `${g.name}(${g.id}#${n})`
-        n++
-      }
+      const disambiguated = ''
+      let n = 1
+      do {
+         n++
+        const disambiguated = `${g.name}(#${n})`
+      } while (usedNames.has(disambiguated))
       g.name = disambiguated
     }
     usedNames.add(g.name)
@@ -184,7 +184,7 @@ onBeforeUnmount(() => {
       </div>
       <div class="header-title">
         <span class="title-text">{{ storeName }}</span>
-        <span class="title-sub">库存记录</span>
+        <span class="title-sub">库存折线图</span>
       </div>
     </div>
 
