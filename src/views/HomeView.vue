@@ -1351,13 +1351,13 @@ onBeforeUnmount(() => {
               </div>
               <div class="store-meta-row">
                 <div class="store-meta-left">
-                  <span class="distance-tag">{{ group.primary.storeTypeEnum === 'XC_MANJIAN' ? formatDistance(group.primary.distance) : (group.primary.distanceStr || (group.primary.distance ? formatDistance(group.primary.distance) : '')) }}</span>
+                  <span class="distance-tag">{{ group.primary.distanceStr || (group.primary.distance ? formatDistance(group.primary.distance) : '') }}</span>
                   <span :class="getPlatformClass(group.primary.type)" class="badge">{{ getPlatformName(group.primary.type) }}</span>
                   <span class="badge store-type-badge">{{ getStoreTypeName(group.primary.storeTypeEnum) }}</span>
                 </div>
                 <div class="store-meta-actions">
                   <div
-                    v-if="group.primary.storeTypeEnum !== 'XC_MTSJ'"
+                    v-if="group.primary.storeTypeEnum !== 'XC_MTSJ' && group.primary.storeTypeEnum !== 'WM_MTSJ'"
                     class="store-notify-btn"
                     @click.stop="handleBook(group.primary)"
                     title="到货提醒"
