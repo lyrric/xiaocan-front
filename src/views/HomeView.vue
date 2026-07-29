@@ -55,7 +55,6 @@ const meituanIsLoadingMore = ref(false)
 // 歪麦专用状态
 const waimaiSearchForm = reactive({
   name: '',
-  cityCode: null as number | null,
   latitude: '',
   longitude: '',
   // 后端原样返回的完整分页游标，前端不修改，翻页时原样传回，首页为 null
@@ -350,7 +349,6 @@ async function fetchWaimaiList(resetPage = true) {
   }
 
   // 同步地址坐标
-  waimaiSearchForm.cityCode = searchForm.cityCode
   waimaiSearchForm.latitude = searchForm.latitude
   waimaiSearchForm.longitude = searchForm.longitude
 
