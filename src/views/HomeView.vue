@@ -58,7 +58,8 @@ const waimaiSearchForm = reactive({
   cityCode: null as number | null,
   latitude: '',
   longitude: '',
-  pvId: '',
+  // 后端原样返回的完整分页游标，前端不修改，翻页时原样传回，首页为 null
+  scrollPageData: null as Record<string, unknown> | null,
 })
 const waimaiHasNextPage = ref(true)
 const waimaiIsLoadingMore = ref(false)
@@ -317,7 +318,8 @@ async function fetchMeituanList(resetPage = true) {
 
 async function fetchWaimaiList(resetPage = true) {
   if (resetPage) {
-    waimaiSearchForm.pvId = ''
+    // 重新查询时重置分页游标
+    waimaiSearchForm.scrollPageData = null
     waimaiHasNextPage.value = true
     storeList.value = []
   }
@@ -339,8 +341,10 @@ async function fetchWaimaiList(resetPage = true) {
       } else {
         storeList.value = [...storeList.value, ...newItems]
       }
-      waimaiSearchForm.pvId = data.pagePvId || ''
-      waimaiHasNextPage.value = !!(data.pagePvId && newItems.length > 0)
+      // 本地覆盖后端返回的完整 scrollPageData，不做任何修改
+      waimaiSearchForm.scrollPageData = data.scrollPageData || null
+      // 返回的 scrollPageData 为 null 时视为无下一页
+      waimaiHasNextPage.value = data.scrollPageData != null
     } else {
       ElMessage.error(response.data.msg || '查询失败')
     }
