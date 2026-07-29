@@ -413,21 +413,21 @@ async function loadFavorites() {
   if (!selectedAddress.value || !selectedAddress.value.id) {
     return
   }
-  let storeType: string | undefined
+  let storeTypes: string[] | undefined
   if (activeTab.value === 'favorite') {
-    storeType = undefined
+    storeTypes = undefined
   } else if (activeTab.value === 'xiaochan') {
-    storeType = 'XC_MANJIAN'
+    storeTypes = ['XC_MANJIAN']
   } else if (activeTab.value === 'meituan') {
-    storeType = 'XC_MTSJ'
+    storeTypes = ['XC_MTSJ']
   } else if (activeTab.value === 'waimai') {
-    // 歪麦 tab 下可能有 WM_MANJIAN / WM_MTSJ 两种类型，统一加载全部收藏
-    storeType = undefined
+    // 歪麦 tab 下有 WM_MANJIAN / WM_MTSJ 两种类型，同时传入
+    storeTypes = ['WM_MANJIAN', 'WM_MTSJ']
   }
   try {
-    const response = await api.get('/api/favorite/list', {
+    const response = await api.post('/api/favorite/list', {
       locationId: selectedAddress.value.id,
-      storeType,
+      storeTypes,
     })
     if (response.data.success) {
       const list: any[] = response.data.data || []
