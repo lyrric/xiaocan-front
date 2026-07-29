@@ -234,6 +234,31 @@ const groupedStoreList = computed(() => {
   return groups
 })
 
+// 其它搜索结果按 平台类型+uniqId 聚合，复用首页门店卡片
+const otherSearchGroupedList = computed(() => {
+  const groupMap = new Map<string, any>()
+  const groups: any[] = []
+  for (const store of otherSearchResults.value) {
+    const key = `${store.storeTypeEnum || ''}_${store.uniqId || String(store.promotionId || store.storeId || Math.random())}`
+    let group = groupMap.get(key)
+    if (!group) {
+      group = {
+        uniqId: key,
+        primary: store,
+        activities: [] as any[],
+        hasAvailable: false,
+      }
+      groupMap.set(key, group)
+      groups.push(group)
+    }
+    group.activities.push(store)
+    if (store.leftNumber > 0) {
+      group.hasAvailable = true
+    }
+  }
+  return groups
+})
+
 async function fetchXiaochanList(resetPage = true) {
   if (resetPage) {
     searchForm.pageNum = 1
@@ -343,8 +368,8 @@ async function fetchWaimaiList(resetPage = true) {
       }
       // 本地覆盖后端返回的完整 scrollPageData，不做任何修改
       waimaiSearchForm.scrollPageData = data.scrollPageData || null
-      // 返回的 scrollPageData 为 null 时视为无下一页
-      waimaiHasNextPage.value = data.scrollPageData != null
+      // 返回的 scrollPageData 为 null 或 storeInfos 为空时视为无下一页
+      waimaiHasNextPage.value = data.scrollPageData != null && newItems.length > 0
     } else {
       ElMessage.error(response.data.msg || '查询失败')
     }
@@ -1023,16 +1048,16 @@ async function executeOtherSearch() {
   otherSearchResults.value = []
   otherSearchDone.value = false
   try {
-    const response = await api.post('/api/xiaochan/mtsj', {
+    const response = await api.post('/api/store/search', {
       name: otherSearchKeyword.value.trim(),
+      cityCode: searchForm.cityCode || defaultCityCode,
       latitude: searchForm.latitude,
       longitude: searchForm.longitude,
-      pvId: '',
+      storeTypeEnum: currentOtherSearchActivity.value?.storeTypeEnum || null,
+      uniqId: currentOtherSearchActivity.value?.uniqId || null,
     })
     if (response.data.success) {
-      const data = response.data.data
-      const items: any[] = data.storeInfos || []
-      otherSearchResults.value = items.slice(0, 3)
+      otherSearchResults.value = response.data.data || []
     } else {
       ElMessage.error(response.data.msg || '查询失败')
     }
@@ -1457,25 +1482,56 @@ onBeforeUnmount(() => {
                 搜索中，请稍候...
               </div>
               <div
-                v-for="(item, index) in otherSearchResults"
-                :key="index"
-                class="other-search-result-item"
+                v-for="group in otherSearchGroupedList"
+                :key="group.uniqId"
+                class="store-card"
+                :class="{ 'sold-out': !group.hasAvailable }"
               >
-                <div class="osr-avatar">
-                  <img v-if="item.icon" :src="item.icon" :alt="item.name" />
-                  <span v-else>{{ (item.name || '?').charAt(0) }}</span>
+                <!-- Card header: shared store info（复用首页卡片，不展示操作按钮） -->
+                <div class="card-main">
+                  <div class="store-avatar">
+                    <img v-if="group.primary.icon" :src="group.primary.icon" :alt="group.primary.name" />
+                    <span v-else class="avatar-letter">{{ (group.primary.name || '?').charAt(0) }}</span>
+                  </div>
+                  <div class="store-body">
+                    <div class="store-name-row">
+                      <span class="store-name">{{ group.primary.name }}</span>
+                    </div>
+                    <div class="store-meta-row">
+                      <div class="store-meta-left">
+                        <span class="distance-tag">{{ group.primary.distanceStr || (group.primary.distance ? formatDistance(group.primary.distance) : '') }}</span>
+                        <span :class="getPlatformClass(group.primary.type)" class="badge">{{ getPlatformName(group.primary.type) }}</span>
+                        <span class="badge store-type-badge">{{ getStoreTypeName(group.primary.storeTypeEnum) }}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div class="osr-info">
-                  <div class="osr-name">{{ item.name }}</div>
-                  <div class="osr-detail">
-                    <span v-if="item.distance">{{ item.distance }}</span>
-                    <span v-if="item.rebateRatio"> · 返{{ item.rebateRatio }}% 最高{{ item.rebateMax }}元</span>
-                    <span
-                      class="osr-left-num"
-                      :class="item.leftNumber > 0 ? 'osr-left-available' : 'osr-left-soldout'"
-                    >
-                      · {{ item.leftNumber > 0 ? '剩余 ' + item.leftNumber : '已售罄' }}
-                    </span>
+
+                <!-- Activity list -->
+                <div class="activity-list" :class="{ 'single-activity': group.activities.length === 1 }">
+                  <div
+                    v-for="activity in group.activities"
+                    :key="activity.promotionId"
+                    class="activity-row"
+                  >
+                    <div class="activity-info">
+                      <span v-if="activity.storeTypeEnum === 'XC_MANJIAN' || activity.storeTypeEnum === 'WM_MANJIAN'" class="price-tag">
+                        满<em>{{ activity.price }}</em>返<em class="rebate">{{ activity.rebatePrice }}</em>
+                      </span>
+                      <span v-else class="price-tag">
+                        返<em class="rebate">{{ activity.rebateRatio }}%</em>&nbsp;最高<em>{{ activity.rebateMax }}</em>元
+                      </span>
+                      <div class="activity-tags">
+                        <span class="info-chip">{{ activity.startTime }}-{{ activity.endTime }}</span>
+                        <span v-if="activity.rebateConditionStr" class="info-chip">{{ activity.rebateConditionStr }}</span>
+                        <span
+                          class="info-chip"
+                          :class="{ 'chip-danger': activity.leftNumber <= 0, 'chip-success': activity.leftNumber > 0 }"
+                        >
+                          {{ activity.leftNumber > 0 ? '剩余 ' + activity.leftNumber : '已售罄' }}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2539,8 +2595,17 @@ $radius-full: 999px;
   }
 
   .other-search-results {
-    max-height: 300px;
+    max-height: 55vh;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    // 复用首页门店卡片，弹窗内加边框区分背景
+    .store-card {
+      border: 1px solid #f0f2f5;
+      box-shadow: none;
+    }
   }
 
   .other-search-loading {
@@ -2563,71 +2628,6 @@ $radius-full: 999px;
     padding: 36px 0;
     color: $text-hint;
     font-size: 14px;
-  }
-
-  .other-search-result-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 0;
-    border-bottom: 1px solid #f3f4f6;
-
-    &:last-child {
-      border-bottom: none;
-    }
-  }
-
-  .osr-avatar {
-    width: 44px;
-    height: 44px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    overflow: hidden;
-    color: #fff;
-    font-size: 16px;
-    font-weight: 600;
-
-    img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-  }
-
-  .osr-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .osr-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: $text-primary;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .osr-detail {
-    font-size: 12px;
-    color: $text-hint;
-    margin-top: 4px;
-  }
-
-  .osr-left-num {
-    font-weight: 500;
-
-    &.osr-left-available {
-      color: #22c55e;
-    }
-
-    &.osr-left-soldout {
-      color: #ef4444;
-    }
   }
 }
 
