@@ -554,7 +554,7 @@ async function handleSaveFavorite(store: any, storeType: string) {
       icon: store.icon,
       name: store.name,
       type: store.type,
-      distance: store.distance,
+      distance: store.distanceStr,
     })
     if (response.data.success) {
       ElMessage.success('收藏成功')
@@ -785,14 +785,6 @@ function getPlatformClass(type: number) {
     3: 'platform-tag platform-jd',
   }
   return classes[type] || ''
-}
-
-function formatDistance(distance: number) {
-  if (distance < 1000) {
-    return distance + 'm'
-  } else {
-    return (distance / 1000).toFixed(1) + 'km'
-  }
 }
 
 function canApply(store: any) {
@@ -1118,7 +1110,7 @@ async function handleNotifyConfigSave() {
           storeTypeEnum: currentNotifyStore.value.storeTypeEnum,
           type: currentNotifyStore.value.type,
           icon: currentNotifyStore.value.icon,
-          distance: currentNotifyStore.value.distance,
+          distance: currentNotifyStore.value.distanceStr,
         },
         remindFrequency: notifyConfigForm.remindFrequency,
       },
@@ -1376,7 +1368,7 @@ onBeforeUnmount(() => {
               </div>
               <div class="store-meta-row">
                 <div class="store-meta-left">
-                  <span class="distance-tag">{{ group.primary.distanceStr || (group.primary.distance ? formatDistance(group.primary.distance) : '') }}</span>
+                  <span class="distance-tag">{{ group.primary.distanceStr }}</span>
                   <span :class="getPlatformClass(group.primary.type)" class="badge">{{ getPlatformName(group.primary.type) }}</span>
                   <span class="badge store-type-badge">{{ getStoreTypeName(group.primary.storeTypeEnum) }}</span>
                 </div>
@@ -1499,7 +1491,7 @@ onBeforeUnmount(() => {
                     </div>
                     <div class="store-meta-row">
                       <div class="store-meta-left">
-                        <span class="distance-tag">{{ group.primary.distanceStr || (group.primary.distance ? formatDistance(group.primary.distance) : '') }}</span>
+                        <span class="distance-tag">{{ group.primary.distanceStr }}</span>
                         <span :class="getPlatformClass(group.primary.type)" class="badge">{{ getPlatformName(group.primary.type) }}</span>
                         <span class="badge store-type-badge">{{ getStoreTypeName(group.primary.storeTypeEnum) }}</span>
                       </div>

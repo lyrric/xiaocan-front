@@ -192,15 +192,6 @@ function getStoreTypeName(storeType: string) {
   return storeType
 }
 
-function formatDistance(distance: number) {
-  if (!distance) return ''
-  if (distance < 1000) {
-    return distance + 'm'
-  } else {
-    return (distance / 1000).toFixed(1) + 'km'
-  }
-}
-
 function formatTime(dateStr: string) {
   if (!dateStr) return ''
   const date = new Date(dateStr)
@@ -374,7 +365,7 @@ onBeforeUnmount(() => {
                 <span v-else class="price-tag">
                   满<em>{{ item.price }}</em>返<em class="rebate">{{ item.rebatePrice }}</em>
                 </span>
-                <span v-if="item.distanceStr || item.distance" class="distance-tag">{{ item.distanceStr || formatDistance(item.distance) }}</span>
+                <span v-if="item.distanceStr" class="distance-tag">{{ item.distanceStr }}</span>
               </div>
             </div>
           </div>
