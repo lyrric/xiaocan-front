@@ -48,7 +48,7 @@ function renderChart(data: any[]) {
     groupMap.get(key)!.items.push(item)
   }
 
-  // 同名不同 sku_id 时图例会重名导致只显示一条，这里追加 sku_id 后缀去重
+  // 同名不同 sku_id 时图例会重名导致只显示一条，这里追加后缀去重
   const nameCount = new Map<string, number>()
   for (const g of groupMap.values()) {
     nameCount.set(g.name, (nameCount.get(g.name) || 0) + 1)

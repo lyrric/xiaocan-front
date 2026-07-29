@@ -131,11 +131,6 @@ function getPlatformClass(type: number) {
   return classes[type] || ''
 }
 
-function getRebateConditionText(condition: number) {
-  const conditions: Record<number, string> = { 99: '无需评价', 2: '图文评价' }
-  return conditions[condition] || '其他'
-}
-
 async function loadNotifyConfigList() {
   try {
     const response = await api.get('/api/notify/config/list')
@@ -187,6 +182,14 @@ function getNotifyTypeClass(notifyType: string) {
     MINIMUM_PAY: 'type-tag type-pay',
   }
   return classes[notifyType] || 'type-tag'
+}
+
+function getStoreTypeName(storeType: string) {
+  if (storeType === 'XC_MTSJ') return '美团赏金'
+  if (storeType === 'XC_MANJIAN') return '小蚕满减'
+  if (storeType === 'WM_MANJIAN') return '歪麦满减'
+  if (storeType === 'WM_MTSJ') return '歪麦返现'
+  return storeType
 }
 
 function formatDistance(distance: number) {
@@ -362,14 +365,16 @@ onBeforeUnmount(() => {
             <div class="store-body">
               <div class="store-name-row">
                 <span class="store-name">{{ item.name }}</span>
-                <span v-if="item.ifNew" class="badge badge-new">新店</span>
                 <span :class="getPlatformClass(item.type)" class="badge">{{ getPlatformName(item.type) }}</span>
               </div>
               <div class="store-price-row">
-                <span class="price-tag">
+                <span v-if="item.rebateRatio" class="price-tag">
+                  返<em class="rebate">{{ item.rebateRatio }}%</em>&nbsp;最高<em>{{ item.rebateMax }}</em>元
+                </span>
+                <span v-else class="price-tag">
                   满<em>{{ item.price }}</em>返<em class="rebate">{{ item.rebatePrice }}</em>
                 </span>
-                <span v-if="item.distance" class="distance-tag">{{ formatDistance(item.distance) }}</span>
+                <span v-if="item.distanceStr || item.distance" class="distance-tag">{{ item.distanceStr || formatDistance(item.distance) }}</span>
               </div>
             </div>
           </div>
@@ -379,9 +384,9 @@ onBeforeUnmount(() => {
             <span :class="getNotifyTypeClass(item.notifyType)" class="info-chip">
               {{ getNotifyTypeName(item.notifyType) }}
             </span>
+            <span v-if="item.storeTypeEnum" class="info-chip chip-store-type">{{ getStoreTypeName(item.storeTypeEnum) }}</span>
             <span class="info-chip">{{ item.startTime }}-{{ item.endTime }}</span>
-            <span class="info-chip">{{ getRebateConditionText(item.rebateCondition) }}</span>
-            <span v-if="item.openHours" class="info-chip">{{ item.openHours }}</span>
+            <span v-if="item.rebateConditionStr" class="info-chip">{{ item.rebateConditionStr }}</span>
             <span
               class="info-chip"
               :class="{ 'chip-danger': item.leftNumber <= 0, 'chip-success': item.leftNumber > 0 }"
@@ -957,6 +962,12 @@ $radius-full: 999px;
   &.chip-danger {
     background: #fee2e2;
     color: #991b1b;
+    font-weight: 500;
+  }
+
+  &.chip-store-type {
+    background: #f3e8ff;
+    color: #7c3aed;
     font-weight: 500;
   }
 }

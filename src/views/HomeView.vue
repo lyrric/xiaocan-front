@@ -23,8 +23,8 @@ const authState = inject<{
 const loading = ref(false)
 const actionLoading = reactive<Record<string, boolean>>({})
 
-// Tab: 'xiaochan' | 'meituan' | 'favorite'
-const activeTab = ref<'xiaochan' | 'meituan' | 'favorite'>('xiaochan')
+// Tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorite'
+const activeTab = ref<'xiaochan' | 'meituan' | 'waimai' | 'favorite'>('xiaochan')
 
 const searchForm = reactive({
   name: '',
@@ -52,6 +52,17 @@ const meituanSearchForm = reactive({
 const meituanHasNextPage = ref(true)
 const meituanIsLoadingMore = ref(false)
 
+// 歪麦专用状态
+const waimaiSearchForm = reactive({
+  name: '',
+  cityCode: null as number | null,
+  latitude: '',
+  longitude: '',
+  pvId: '',
+})
+const waimaiHasNextPage = ref(true)
+const waimaiIsLoadingMore = ref(false)
+
 // 收藏门店专用状态
 const favoriteSearchForm = reactive({
   name: '',
@@ -65,6 +76,9 @@ const currentSearchName = computed({
     if (activeTab.value === 'meituan') {
       return meituanSearchForm.name
     }
+    if (activeTab.value === 'waimai') {
+      return waimaiSearchForm.name
+    }
     if (activeTab.value === 'favorite') {
       return favoriteSearchForm.name
     }
@@ -73,6 +87,8 @@ const currentSearchName = computed({
   set: (v: string) => {
     if (activeTab.value === 'meituan') {
       meituanSearchForm.name = v
+    } else if (activeTab.value === 'waimai') {
+      waimaiSearchForm.name = v
     } else if (activeTab.value === 'favorite') {
       favoriteSearchForm.name = v
     } else {
@@ -299,6 +315,46 @@ async function fetchMeituanList(resetPage = true) {
   }
 }
 
+async function fetchWaimaiList(resetPage = true) {
+  if (resetPage) {
+    waimaiSearchForm.pvId = ''
+    waimaiHasNextPage.value = true
+    storeList.value = []
+  }
+
+  // 同步地址坐标
+  waimaiSearchForm.cityCode = searchForm.cityCode
+  waimaiSearchForm.latitude = searchForm.latitude
+  waimaiSearchForm.longitude = searchForm.longitude
+
+  loading.value = resetPage
+
+  try {
+    const response = await api.post('/api/wmmt/shopList', waimaiSearchForm)
+    if (response.data.success) {
+      const data = response.data.data
+      const newItems: any[] = data.storeInfos || []
+      if (resetPage) {
+        storeList.value = newItems
+      } else {
+        storeList.value = [...storeList.value, ...newItems]
+      }
+      waimaiSearchForm.pvId = data.pagePvId || ''
+      waimaiHasNextPage.value = !!(data.pagePvId && newItems.length > 0)
+    } else {
+      ElMessage.error(response.data.msg || '查询失败')
+    }
+  } catch {
+    ElMessage.error('网络错误，请稍后重试')
+  } finally {
+    loading.value = false
+    waimaiIsLoadingMore.value = false
+    nextTick(() => {
+      reinitScrollObserver()
+    })
+  }
+}
+
 async function fetchFavoriteList(resetPage = true) {
   if (!selectedAddress.value || !selectedAddress.value.id) {
     ElMessage.warning('请先选择地址')
@@ -357,7 +413,17 @@ async function loadFavorites() {
   if (!selectedAddress.value || !selectedAddress.value.id) {
     return
   }
-  const storeType = activeTab.value === 'favorite' ? undefined : activeTab.value === 'xiaochan' ? 'XC_MANJIAN' : 'XC_MTSJ'
+  let storeType: string | undefined
+  if (activeTab.value === 'favorite') {
+    storeType = undefined
+  } else if (activeTab.value === 'xiaochan') {
+    storeType = 'XC_MANJIAN'
+  } else if (activeTab.value === 'meituan') {
+    storeType = 'XC_MTSJ'
+  } else if (activeTab.value === 'waimai') {
+    // 歪麦 tab 下可能有 WM_MANJIAN / WM_MTSJ 两种类型，统一加载全部收藏
+    storeType = undefined
+  }
   try {
     const response = await api.get('/api/favorite/list', {
       locationId: selectedAddress.value.id,
@@ -384,15 +450,21 @@ function getFavoriteKey(storeType: string, uniqId: string) {
   return `${storeType}-${uniqId}`
 }
 
+function getDefaultStoreType(): string {
+  if (activeTab.value === 'meituan') return 'XC_MTSJ'
+  if (activeTab.value === 'waimai') return 'WM_MANJIAN'
+  return 'XC_MANJIAN'
+}
+
 function isFavorite(store: any) {
   if (store.favoriteId) return true
-  const storeType = store.storeTypeEnum || (activeTab.value === 'meituan' ? 'XC_MTSJ' : 'XC_MANJIAN')
+  const storeType = store.storeTypeEnum || getDefaultStoreType()
   const key = getFavoriteKey(storeType, store.uniqId)
   return key ? favoriteMap.value.has(key) : false
 }
 
 function getFavoriteRecord(store: any) {
-  const storeType = store.storeTypeEnum || (activeTab.value === 'meituan' ? 'XC_MTSJ' : 'XC_MANJIAN')
+  const storeType = store.storeTypeEnum || getDefaultStoreType()
   const key = getFavoriteKey(storeType, store.uniqId)
   return key ? favoriteMap.value.get(key) : null
 }
@@ -403,7 +475,7 @@ async function handleFavoriteToggle(store: any) {
     return
   }
 
-  const storeType = store.storeTypeEnum || (activeTab.value === 'meituan' ? 'XC_MTSJ' : 'XC_MANJIAN')
+  const storeType = store.storeTypeEnum || getDefaultStoreType()
 
   // 收藏列表模式下直接取消收藏
   if (store.favoriteId) {
@@ -420,7 +492,7 @@ async function handleFavoriteToggle(store: any) {
 }
 
 async function handleRemoveFavorite(store: any) {
-  const storeType = store.storeTypeEnum || (activeTab.value === 'meituan' ? 'XC_MTSJ' : 'XC_MANJIAN')
+  const storeType = store.storeTypeEnum || getDefaultStoreType()
   try {
     const response = await api.post('/api/favorite/remove', {
       locationId: selectedAddress.value?.id,
@@ -469,6 +541,8 @@ async function handleSaveFavorite(store: any, storeType: string) {
 function getStoreTypeName(storeType: string) {
   if (storeType === 'XC_MTSJ') return '美团赏金'
   if (storeType === 'XC_MANJIAN') return '小蚕满减'
+  if (storeType === 'WM_MANJIAN') return '歪麦满减'
+  if (storeType === 'WM_MTSJ') return '歪麦返现'
   return storeType
 }
 
@@ -482,19 +556,23 @@ async function handleSearch(resetPage = true) {
   }
   if (activeTab.value === 'meituan') {
     await fetchMeituanList(resetPage)
+  } else if (activeTab.value === 'waimai') {
+    await fetchWaimaiList(resetPage)
   } else {
     await fetchXiaochanList(resetPage)
   }
 }
 
-async function handleTabChange(tab: 'xiaochan' | 'meituan' | 'favorite') {
+async function handleTabChange(tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorite') {
   activeTab.value = tab
   storeList.value = []
   favoriteMap.value = new Map()
   pagination.hasNextPage = true
   meituanHasNextPage.value = true
+  waimaiHasNextPage.value = true
   if (tab === 'favorite') {
     meituanHasNextPage.value = false
+    waimaiHasNextPage.value = false
     favoriteSearchForm.pageNum = 1
     pagination.currentPage = 1
   } else {
@@ -513,18 +591,30 @@ function initScrollObserver() {
     if (loadMoreTrigger.value) {
       scrollObserver = new IntersectionObserver(
         (entries) => {
-          entries.forEach((entry) => {
-            const hasNext = activeTab.value === 'meituan' ? meituanHasNextPage.value : pagination.hasNextPage
-            const isLoadingMore = activeTab.value === 'meituan' ? meituanIsLoadingMore.value : pagination.isLoadingMore
-            if (
-              entry.isIntersecting &&
-              hasNext &&
-              !isLoadingMore &&
-              !loading.value
-            ) {
-              loadNextPage()
-            }
-          })
+          const entry = entries[0]
+          let hasNext = false
+          let isLoadingMore = false
+          if (activeTab.value === 'meituan') {
+            hasNext = meituanHasNextPage.value
+            isLoadingMore = meituanIsLoadingMore.value
+          } else if (activeTab.value === 'waimai') {
+            hasNext = waimaiHasNextPage.value
+            isLoadingMore = waimaiIsLoadingMore.value
+          } else if (activeTab.value === 'favorite') {
+            hasNext = pagination.hasNextPage
+            isLoadingMore = pagination.isLoadingMore
+          } else {
+            hasNext = pagination.hasNextPage
+            isLoadingMore = pagination.isLoadingMore
+          }
+          if (
+            entry?.isIntersecting &&
+            hasNext &&
+            !isLoadingMore &&
+            !loading.value
+          ) {
+            loadNextPage()
+          }
         },
         { rootMargin: '300px', threshold: 0.1 },
       )
@@ -545,6 +635,10 @@ async function loadNextPage() {
     if (!meituanHasNextPage.value || meituanIsLoadingMore.value || loading.value) return
     meituanIsLoadingMore.value = true
     await fetchMeituanList(false)
+  } else if (activeTab.value === 'waimai') {
+    if (!waimaiHasNextPage.value || waimaiIsLoadingMore.value || loading.value) return
+    waimaiIsLoadingMore.value = true
+    await fetchWaimaiList(false)
   } else if (activeTab.value === 'favorite') {
     if (!pagination.hasNextPage || pagination.isLoadingMore || loading.value) return
     pagination.isLoadingMore = true
@@ -633,7 +727,7 @@ async function handleIgnore(store: any) {
       type: store.type,
       price: store.price,
       rebatePrice: store.rebatePrice,
-      rebateCondition: store.rebateCondition,
+      rebateConditionStr: store.rebateConditionStr,
       icon: store.icon,
     }
     const response = await api.post('/api/xiaochan/ignore', ignoreData)
@@ -662,11 +756,6 @@ function getPlatformClass(type: number) {
     3: 'platform-tag platform-jd',
   }
   return classes[type] || ''
-}
-
-function getRebateConditionText(condition: number) {
-  const conditions: Record<number, string> = { 99: '无需评价', 2: '图文评价' }
-  return conditions[condition] || '其他'
 }
 
 function formatDistance(distance: number) {
@@ -1060,6 +1149,11 @@ onBeforeUnmount(() => {
         >美团赏金</div>
         <div
           class="tab-item"
+          :class="{ active: activeTab === 'waimai' }"
+          @click="handleTabChange('waimai')"
+        >歪麦</div>
+        <div
+          class="tab-item"
           :class="{ active: activeTab === 'favorite' }"
           @click="handleTabChange('favorite')"
         >收藏门店</div>
@@ -1253,7 +1347,7 @@ onBeforeUnmount(() => {
               </div>
               <div class="store-meta-row">
                 <div class="store-meta-left">
-                  <span class="distance-tag">{{ group.primary.storeTypeEnum === 'XC_MANJIAN' ? formatDistance(group.primary.distance) : group.primary.distance }}</span>
+                  <span class="distance-tag">{{ group.primary.storeTypeEnum === 'XC_MANJIAN' ? formatDistance(group.primary.distance) : (group.primary.distanceStr || (group.primary.distance ? formatDistance(group.primary.distance) : '')) }}</span>
                   <span :class="getPlatformClass(group.primary.type)" class="badge">{{ getPlatformName(group.primary.type) }}</span>
                   <span class="badge store-type-badge">{{ getStoreTypeName(group.primary.storeTypeEnum) }}</span>
                 </div>
@@ -1297,7 +1391,7 @@ onBeforeUnmount(() => {
               class="activity-row"
             >
               <div class="activity-info">
-                <span v-if="activity.storeTypeEnum === 'XC_MANJIAN'" class="price-tag">
+                <span v-if="activity.storeTypeEnum === 'XC_MANJIAN' || activity.storeTypeEnum === 'WM_MANJIAN'" class="price-tag">
                   满<em>{{ activity.price }}</em>返<em class="rebate">{{ activity.rebatePrice }}</em>
                 </span>
                 <span v-else class="price-tag">
@@ -1305,7 +1399,7 @@ onBeforeUnmount(() => {
                 </span>
                 <div class="activity-tags">
                   <span class="info-chip">{{ activity.startTime }}-{{ activity.endTime }}</span>
-                  <span class="info-chip">{{ getRebateConditionText(activity.rebateCondition) }}</span>
+                  <span v-if="activity.rebateConditionStr" class="info-chip">{{ activity.rebateConditionStr }}</span>
                   <span
                     class="info-chip"
                     :class="{ 'chip-danger': activity.leftNumber <= 0, 'chip-success': activity.leftNumber > 0 }"
