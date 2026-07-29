@@ -57,8 +57,14 @@ const weekOptions = [
   { label: '周日', value: '7' },
 ]
 
+const storeTypeOptions = [
+  { label: '小蚕满减', value: 'XC_MANJIAN' },
+  { label: '歪卖满减', value: 'WM_MANJIAN' },
+]
+
 const form = reactive({
   locationId: null as number | null,
+  storeType: 'XC_MANJIAN',
   startHour: 8,
   endHour: 22,
   weeks: [] as string[],
@@ -168,6 +174,11 @@ function getTypeText(type: string) {
   }
 }
 
+function getStoreTypeText(storeType: string) {
+  const opt = storeTypeOptions.find((o) => o.value === storeType)
+  return opt ? opt.label : storeType || '小蚕满减'
+}
+
 function getTypeTagType(type: string) {
   switch (type) {
     case 'STORE_ACTIVITY':
@@ -259,6 +270,7 @@ async function loadLocations() {
 function resetForm() {
   formRef.value?.resetFields()
   form.locationId = null
+  form.storeType = 'XC_MANJIAN'
   form.startHour = 8
   form.endHour = 22
   form.weeks = []
@@ -285,6 +297,7 @@ function showEditDialog(config: any) {
   editingId.value = config.id
   currentEditConfig.value = config
   form.locationId = config.locationId
+  form.storeType = config.storeType || 'XC_MANJIAN'
   form.startHour = config.startHour ?? 8
   form.endHour = config.endHour ?? 22
   form.weeks = config.weeks ? config.weeks.split(',') : []
@@ -309,6 +322,7 @@ function submitForm() {
         const trimmedCron = form.cron ? form.cron.trim() : ''
         const requestData: any = {
           locationId: form.locationId,
+          storeType: form.storeType,
           cron: trimmedCron || null,
           startHour: trimmedCron ? (form.startHour ?? null) : form.startHour,
           endHour: trimmedCron ? (form.endHour ?? null) : form.endHour,
@@ -554,6 +568,9 @@ onUnmounted(() => {
             </div>
 
             <div class="notify-info">
+              <p class="info-item">
+                <span>门店类型：{{ getStoreTypeText(config.storeType) }}</span>
+              </p>
               <p v-if="!config.cron" class="info-item">
                 <span>运行时间：{{ config.startHour }}:00 - {{ config.endHour }}:00</span>
               </p>
@@ -681,6 +698,10 @@ onUnmounted(() => {
               <label>位置：</label>
               <span>{{ getLocationName(currentDetail.locationId) }}</span>
             </div>
+            <div class="detail-item">
+              <label>门店类型：</label>
+              <span>{{ getStoreTypeText(currentDetail.storeType) }}</span>
+            </div>
             <div v-if="!currentDetail.cron" class="detail-item">
               <label>运行时间：</label>
               <span>{{ currentDetail.startHour }}:00 - {{ currentDetail.endHour }}:00</span>
@@ -802,6 +823,17 @@ onUnmounted(() => {
             </el-select>
           </el-form-item>
         </template>
+
+        <el-form-item label="门店类型">
+          <el-select v-model="form.storeType" style="width: 100%">
+            <el-option
+              v-for="opt in storeTypeOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+        </el-form-item>
 
         <el-row :gutter="20">
           <el-col :span="12">

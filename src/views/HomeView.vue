@@ -566,10 +566,10 @@ async function handleSaveFavorite(store: any, storeType: string) {
 }
 
 function getStoreTypeName(storeType: string) {
-  if (storeType === 'XC_MTSJ') return '美团赏金'
+  if (storeType === 'XC_MTSJ') return '小蚕赏金'
   if (storeType === 'XC_MANJIAN') return '小蚕满减'
   if (storeType === 'WM_MANJIAN') return '歪麦满减'
-  if (storeType === 'WM_MTSJ') return '歪麦返现'
+  if (storeType === 'WM_MTSJ') return '歪麦赏金'
   return storeType
 }
 
@@ -1165,7 +1165,7 @@ onBeforeUnmount(() => {
           class="tab-item"
           :class="{ active: activeTab === 'meituan' }"
           @click="handleTabChange('meituan')"
-        >美团赏金</div>
+        >小蚕赏金</div>
         <div
           class="tab-item"
           :class="{ active: activeTab === 'waimai' }"
