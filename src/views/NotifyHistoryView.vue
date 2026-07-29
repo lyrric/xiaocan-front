@@ -386,7 +386,6 @@ onBeforeUnmount(() => {
             </span>
             <span v-if="item.storeTypeEnum" class="info-chip chip-store-type">{{ getStoreTypeName(item.storeTypeEnum) }}</span>
             <span class="info-chip">{{ item.startTime }}-{{ item.endTime }}</span>
-            <span v-if="item.rebateConditionStr" class="info-chip">{{ item.rebateConditionStr }}</span>
             <span
               class="info-chip"
               :class="{ 'chip-danger': item.leftNumber <= 0, 'chip-success': item.leftNumber > 0 }"
