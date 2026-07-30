@@ -2,7 +2,7 @@
 import { ref, reactive, onMounted, onUnmounted, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, ArrowUp, View, Edit, Delete } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, View, Delete } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
 import api from '../api'
 
@@ -506,8 +506,8 @@ function handleCardCommand(command: string, config: any) {
     case 'detail':
       viewDetail(config)
       break
-    case 'edit':
-      showEditDialog(config)
+    case 'history':
+      showExecHistory(config)
       break
     case 'delete':
       deleteConfig(config.id)
@@ -653,20 +653,19 @@ onUnmounted(() => {
                   <el-button
                     link
                     size="small"
-                    class="history-btn"
-                    @click="showExecHistory(config)"
-                    :disabled="loading"
-                  >
-                    运行记录
-                  </el-button>
-                  <el-button
-                    v-if="config.type === 'STORE_ACTIVITY' && config.storeExtNotifyConfig?.storeInfo"
-                    link
-                    size="small"
                     class="record-btn"
                     @click="handleRecord(config)"
                   >
                     记录
+                  </el-button>
+                  <el-button
+                    link
+                    size="small"
+                    class="edit-btn"
+                    @click="showEditDialog(config)"
+                    :disabled="loading"
+                  >
+                    编辑
                   </el-button>
                   <el-dropdown trigger="click" @command="(cmd: string) => handleCardCommand(cmd, config)">
                     <el-button link size="small" class="more-btn" :disabled="loading">
@@ -677,8 +676,8 @@ onUnmounted(() => {
                         <el-dropdown-item command="detail">
                           <el-icon><View /></el-icon>查看详情
                         </el-dropdown-item>
-                        <el-dropdown-item command="edit">
-                          <el-icon><Edit /></el-icon>编辑
+                        <el-dropdown-item command="history">
+                          <el-icon><View /></el-icon>运行记录
                         </el-dropdown-item>
                         <el-dropdown-item command="delete" divided>
                           <span style="color: #ff4d4f"><el-icon><Delete /></el-icon>删除</span>
@@ -1213,15 +1212,15 @@ onUnmounted(() => {
   border-top: 1px solid #f0f0f0;
 }
 
-.history-btn {
-  color: #722ed1 !important;
+.record-btn {
+  color: #d97706 !important;
   font-size: 12px !important;
   padding: 0 !important;
   height: auto !important;
 }
 
-.record-btn {
-  color: #d97706 !important;
+.edit-btn {
+  color: #409eff !important;
   font-size: 12px !important;
   padding: 0 !important;
   height: auto !important;
@@ -1421,11 +1420,6 @@ onUnmounted(() => {
     .el-button {
       font-size: 12px !important;
     }
-  }
-
-  // 移动端隐藏记录按钮
-  .record-btn {
-    display: none !important;
   }
 
   // 详情视图
