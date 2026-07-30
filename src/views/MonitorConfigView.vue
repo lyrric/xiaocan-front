@@ -651,6 +651,7 @@ onUnmounted(() => {
                     {{ config.status === 'ENABLE' ? '停用' : '启用' }}
                   </el-button>
                   <el-button
+                    v-if="config.type === 'STORE_ACTIVITY' && config.storeExtNotifyConfig?.storeInfo"
                     link
                     size="small"
                     class="record-btn"
