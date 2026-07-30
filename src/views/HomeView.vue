@@ -99,6 +99,7 @@ const currentSearchName = computed({
 
 let scrollObserver: IntersectionObserver | null = null
 const loadMoreTrigger = ref<HTMLElement | null>(null)
+const loadError = ref(false)
 const storeList = ref<any[]>([])
 const favoriteMap = ref<Map<string, any>>(new Map())
 const favoriteLoading = ref(false)
@@ -208,6 +209,19 @@ const loadedPages = computed(() => {
   return Math.ceil(storeList.value.length / searchForm.pageSize)
 })
 
+// 当前 Tab 的加载状态聚合
+const currentTabIsLoadingMore = computed(() => {
+  if (activeTab.value === 'meituan') return meituanIsLoadingMore.value
+  if (activeTab.value === 'waimai') return waimaiIsLoadingMore.value
+  return pagination.isLoadingMore
+})
+
+const currentTabHasNextPage = computed(() => {
+  if (activeTab.value === 'meituan') return meituanHasNextPage.value
+  if (activeTab.value === 'waimai') return waimaiHasNextPage.value
+  return pagination.hasNextPage
+})
+
 // 按 uniqId 聚合门店列表
 const groupedStoreList = computed(() => {
   const groupMap = new Map<string, any>()
@@ -270,6 +284,7 @@ async function fetchXiaochanList(resetPage = true) {
   try {
     const response = await api.post('/api/xiaochan/query', searchForm)
     if (response.data.success) {
+      loadError.value = false
       const newData = response.data.data || []
       if (resetPage) {
         storeList.value = newData
@@ -279,6 +294,7 @@ async function fetchXiaochanList(resetPage = true) {
       pagination.hasNextPage = newData.length >= searchForm.pageSize
     } else {
       ElMessage.error(response.data.msg || '查询失败')
+      loadError.value = !resetPage
       if (!resetPage) {
         pagination.currentPage--
         searchForm.pageNum = pagination.currentPage
@@ -286,6 +302,7 @@ async function fetchXiaochanList(resetPage = true) {
     }
   } catch {
     ElMessage.error('网络错误，请稍后重试')
+    loadError.value = !resetPage
     if (!resetPage) {
       pagination.currentPage--
       searchForm.pageNum = pagination.currentPage
@@ -315,6 +332,7 @@ async function fetchMeituanList(resetPage = true) {
   try {
     const response = await api.post('/api/xiaochan/mtsj', meituanSearchForm)
     if (response.data.success) {
+      loadError.value = false
       const data = response.data.data
       const newItems: any[] = data.storeInfos || []
       if (resetPage) {
@@ -328,9 +346,11 @@ async function fetchMeituanList(resetPage = true) {
       meituanHasNextPage.value = !!(data.pagePvId && newItems.length > 0)
     } else {
       ElMessage.error(response.data.msg || '查询失败')
+      loadError.value = !resetPage
     }
   } catch {
     ElMessage.error('网络错误，请稍后重试')
+    loadError.value = !resetPage
   } finally {
     loading.value = false
     meituanIsLoadingMore.value = false
@@ -357,6 +377,7 @@ async function fetchWaimaiList(resetPage = true) {
   try {
     const response = await api.post('/api/wmmt/shopList', waimaiSearchForm)
     if (response.data.success) {
+      loadError.value = false
       const data = response.data.data
       const newItems: any[] = data.storeInfos || []
       if (resetPage) {
@@ -370,9 +391,11 @@ async function fetchWaimaiList(resetPage = true) {
       waimaiHasNextPage.value = data.scrollPageData != null && newItems.length > 0
     } else {
       ElMessage.error(response.data.msg || '查询失败')
+      loadError.value = !resetPage
     }
   } catch {
     ElMessage.error('网络错误，请稍后重试')
+    loadError.value = !resetPage
   } finally {
     loading.value = false
     waimaiIsLoadingMore.value = false
@@ -405,6 +428,7 @@ async function fetchFavoriteList(resetPage = true) {
       pageSize: favoriteSearchForm.pageSize,
     })
     if (response.data.success) {
+      loadError.value = false
       const pageData = response.data.data || {}
       const newItems: any[] = pageData.records || []
       if (resetPage) {
@@ -416,6 +440,7 @@ async function fetchFavoriteList(resetPage = true) {
       pagination.hasNextPage = newItems.length >= favoriteSearchForm.pageSize && storeList.value.length < total
     } else {
       ElMessage.error(response.data.msg || '查询失败')
+      loadError.value = !resetPage
       if (!resetPage) {
         pagination.currentPage--
         favoriteSearchForm.pageNum = pagination.currentPage
@@ -423,6 +448,7 @@ async function fetchFavoriteList(resetPage = true) {
     }
   } catch {
     ElMessage.error('网络错误，请稍后重试')
+    loadError.value = !resetPage
     if (!resetPage) {
       pagination.currentPage--
       favoriteSearchForm.pageNum = pagination.currentPage
@@ -574,6 +600,7 @@ function getStoreTypeName(storeType: string) {
 }
 
 async function handleSearch(resetPage = true) {
+  if (resetPage) loadError.value = false
   if (activeTab.value === 'favorite') {
     await fetchFavoriteList()
     return
@@ -592,6 +619,7 @@ async function handleSearch(resetPage = true) {
 
 async function handleTabChange(tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorite') {
   activeTab.value = tab
+  loadError.value = false
   storeList.value = []
   favoriteMap.value = new Map()
   pagination.hasNextPage = true
@@ -638,7 +666,8 @@ function initScrollObserver() {
             entry?.isIntersecting &&
             hasNext &&
             !isLoadingMore &&
-            !loading.value
+            !loading.value &&
+            !loadError.value
           ) {
             loadNextPage()
           }
@@ -658,6 +687,7 @@ function reinitScrollObserver() {
 }
 
 async function loadNextPage() {
+  if (loadError.value) return
   if (activeTab.value === 'meituan') {
     if (!meituanHasNextPage.value || meituanIsLoadingMore.value || loading.value) return
     meituanIsLoadingMore.value = true
@@ -679,6 +709,11 @@ async function loadNextPage() {
     searchForm.pageNum = pagination.currentPage
     await fetchXiaochanList(false)
   }
+}
+
+function retryLoadMore() {
+  loadError.value = false
+  loadNextPage()
 }
 
 async function refreshCurrentPageData() {
@@ -1642,14 +1677,19 @@ onBeforeUnmount(() => {
 
         <!-- Scroll load more indicator -->
         <div class="scroll-loading-container" v-if="storeList.length > 0">
-          <div v-if="activeTab === 'meituan' ? meituanIsLoadingMore : pagination.isLoadingMore" class="loading-more">
+          <div v-if="currentTabIsLoadingMore" class="loading-more">
             <div class="loading-dots">
               <span></span><span></span><span></span>
             </div>
             <span>加载中</span>
           </div>
 
-          <div v-else-if="!(activeTab === 'meituan' ? meituanHasNextPage : pagination.hasNextPage)" class="no-more-data">
+          <div v-else-if="loadError" class="load-error-container">
+            <span class="load-error-text">加载失败</span>
+            <button class="load-retry-btn" @click="retryLoadMore">重新加载</button>
+          </div>
+
+          <div v-else-if="!currentTabHasNextPage" class="no-more-data">
             <span class="divider-line"></span>
             <span>没有更多了</span>
             <span class="divider-line"></span>
@@ -2793,6 +2833,38 @@ $radius-full: 999px;
   width: 40px;
   height: 1px;
   background: $border;
+}
+
+.load-error-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.load-error-text {
+  color: $danger;
+  font-size: 13px;
+}
+
+.load-retry-btn {
+  padding: 4px 16px;
+  font-size: 13px;
+  color: $primary;
+  background: $primary-light;
+  border: 1px solid $primary;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: $primary;
+    color: #fff;
+  }
+
+  &:active {
+    opacity: 0.8;
+  }
 }
 
 .load-more-trigger {
