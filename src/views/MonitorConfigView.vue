@@ -2,7 +2,7 @@
 import { ref, reactive, onMounted, onUnmounted, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, View, Edit, Delete } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, View, Edit, Delete } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
 import api from '../api'
 
@@ -19,6 +19,17 @@ const configList = ref<any[]>([])
 const loading = ref(false)
 const showDetail = ref(false)
 const currentDetail = ref<any>(null)
+
+// 卡片展开/收起状态
+const collapsedCards = reactive(new Set<number>())
+
+function toggleCollapse(configId: number) {
+  if (collapsedCards.has(configId)) {
+    collapsedCards.delete(configId)
+  } else {
+    collapsedCards.add(configId)
+  }
+}
 
 // 移动端检测
 const isMobile = ref(false)
@@ -522,7 +533,7 @@ onUnmounted(() => {
     <!-- 配置列表 -->
     <el-card
       v-if="!showDetail"
-      class="mt-4"
+      class="mt-4 outer-card"
       style="border-radius: 12px; border: none; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05)"
       v-loading="loading"
     >
@@ -544,17 +555,18 @@ onUnmounted(() => {
         </el-empty>
       </div>
 
-      <div v-else class="config-grid mt-4">
+      <div v-else class="config-grid">
         <el-card
           v-for="(config, index) in configList"
           :key="config.id"
           class="address-card"
+          :class="{ 'is-collapsed': collapsedCards.has(config.id) }"
           :style="{ animationDelay: index * 0.1 + 's' }"
         >
           <div>
             <div class="address-header">
               <div class="address-name">{{ getLocationName(config.locationId) }}</div>
-              <div style="display: flex; gap: 6px; margin-left: auto; align-items: center;">
+              <div style="display: flex; gap: 4px; margin-left: auto; align-items: center;">
                 <el-tag
                   :type="config.status === 'ENABLE' ? 'success' : 'info'"
                   size="small"
@@ -564,106 +576,119 @@ onUnmounted(() => {
                 <el-tag :type="getTypeTagType(config.type)" size="small">
                   {{ getTypeText(config.type) }}
                 </el-tag>
+                <span class="collapse-btn" @click="toggleCollapse(config.id)" :title="collapsedCards.has(config.id) ? '展开' : '收起'">
+                  <el-icon :size="14">
+                    <ArrowUp v-if="!collapsedCards.has(config.id)" />
+                    <ArrowDown v-else />
+                  </el-icon>
+                </span>
               </div>
             </div>
 
-            <div class="notify-info">
-              <p class="info-item">
-                <span>门店类型：{{ getStoreTypeText(config.storeType) }}</span>
-              </p>
-              <p v-if="!config.cron" class="info-item">
-                <span>运行时间：{{ config.startHour }}:00 - {{ config.endHour }}:00</span>
-              </p>
-              <p v-if="!config.cron" class="info-item">
-                <span>运行星期：{{ formatWeeks(config.weeks) }}</span>
-              </p>
-              <p v-if="config.cron" class="info-item">
-                <span>cron：{{ config.cron }}</span>
-              </p>
-              <p
-                v-if="config.type === 'MINIMUM_PAY' && config.minimumPayExtNotifyConfig"
-                class="info-item"
-              >
-                <span
-                  >最小实付：{{ config.minimumPayExtNotifyConfig.minimumPay }}元</span
-                >
-              </p>
-              <p
-                v-if="config.type === 'STORE_KEYWORD' && config.storeKeywordExtNotifyConfig"
-                class="info-item"
-              >
-                <span>关键字：{{ config.storeKeywordExtNotifyConfig.keyword }}</span>
-              </p>
-              <p
-                v-if="config.type === 'STORE_KEYWORD' && config.storeKeywordExtNotifyConfig"
-                class="info-item"
-              >
-                <span>限距离制：{{ config.storeKeywordExtNotifyConfig.limitDistance !== false ? '开启（≤3500米）' : '关闭' }}</span>
-              </p>
-              <template
-                v-if="
-                  config.type === 'STORE_ACTIVITY' &&
-                  config.storeExtNotifyConfig?.storeInfo
-                "
-              >
-                <p class="info-item">
-                  <span
-                    >门店：{{ config.storeExtNotifyConfig.storeInfo.name }}（{{ getPlatformNameById(config.storeExtNotifyConfig.storeInfo.type) }}）</span
+            <transition name="collapse">
+              <div v-show="!collapsedCards.has(config.id)">
+                <div class="notify-info">
+                  <p class="info-item">
+                    <span>门店类型：{{ getStoreTypeText(config.storeType) }}</span>
+                  </p>
+                  <p v-if="!config.cron" class="info-item">
+                    <span>运行时间：{{ config.startHour }}:00 - {{ config.endHour }}:00</span>
+                  </p>
+                  <p v-if="!config.cron" class="info-item">
+                    <span>运行星期：{{ formatWeeks(config.weeks) }}</span>
+                  </p>
+                  <p v-if="config.cron" class="info-item">
+                    <span>cron：{{ config.cron }}</span>
+                  </p>
+                  <p
+                    v-if="config.type === 'MINIMUM_PAY' && config.minimumPayExtNotifyConfig"
+                    class="info-item"
                   >
-                </p>
-                <p class="info-item">
-                  <span>距离：{{ config.storeExtNotifyConfig.storeInfo.distance }}</span>
-                </p>
-                <p class="info-item">
-                  <span>提醒频率：{{ getFrequencyText(config.storeExtNotifyConfig.remindFrequency) }}</span>
-                </p>
-              </template>
-            </div>
+                    <span
+                      >最小实付：{{ config.minimumPayExtNotifyConfig.minimumPay }}元</span
+                    >
+                  </p>
+                  <p
+                    v-if="config.type === 'STORE_KEYWORD' && config.storeKeywordExtNotifyConfig"
+                    class="info-item"
+                  >
+                    <span>关键字：{{ config.storeKeywordExtNotifyConfig.keyword }}</span>
+                  </p>
+                  <p
+                    v-if="config.type === 'STORE_KEYWORD' && config.storeKeywordExtNotifyConfig"
+                    class="info-item"
+                  >
+                    <span>限距离制：{{ config.storeKeywordExtNotifyConfig.limitDistance !== false ? '开启（≤3500米）' : '关闭' }}</span>
+                  </p>
+                  <template
+                    v-if="
+                      config.type === 'STORE_ACTIVITY' &&
+                      config.storeExtNotifyConfig?.storeInfo
+                    "
+                  >
+                    <p class="info-item">
+                      <span
+                        >门店：{{ config.storeExtNotifyConfig.storeInfo.name }}（{{ getPlatformNameById(config.storeExtNotifyConfig.storeInfo.type) }}）</span
+                      >
+                    </p>
+                    <p class="info-item">
+                      <span>距离：{{ config.storeExtNotifyConfig.storeInfo.distance }}</span>
+                    </p>
+                    <p class="info-item">
+                      <span>提醒频率：{{ getFrequencyText(config.storeExtNotifyConfig.remindFrequency) }}</span>
+                    </p>
+                  </template>
+                </div>
 
-            <div class="operation-buttons">
-              <el-button
-                size="small"
-                :class="config.status === 'ENABLE' ? 'disable-btn' : 'enable-btn'"
-                @click="toggleStatus(config)"
-                :disabled="loading"
-              >
-                {{ config.status === 'ENABLE' ? '停用' : '启用' }}
-              </el-button>
-              <el-button
-                size="small"
-                class="history-btn"
-                @click="showExecHistory(config)"
-                :disabled="loading"
-              >
-                运行记录
-              </el-button>
-              <el-button
-                v-if="config.type === 'STORE_ACTIVITY' && config.storeExtNotifyConfig?.storeInfo"
-                size="small"
-                class="record-btn"
-                @click="handleRecord(config)"
-              >
-                记录
-              </el-button>
-              <el-dropdown trigger="click" @command="(cmd: string) => handleCardCommand(cmd, config)">
-                <el-button size="small" class="more-btn" :disabled="loading">
-                  更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-                </el-button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="detail">
-                      <el-icon><View /></el-icon>查看详情
-                    </el-dropdown-item>
-                    <el-dropdown-item command="edit">
-                      <el-icon><Edit /></el-icon>编辑
-                    </el-dropdown-item>
-                    <el-dropdown-item command="delete" divided>
-                      <span style="color: #ff4d4f"><el-icon><Delete /></el-icon>删除</span>
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </div>
+                <div class="operation-buttons">
+                  <el-button
+                    link
+                    size="small"
+                    :class="config.status === 'ENABLE' ? 'disable-btn' : 'enable-btn'"
+                    @click="toggleStatus(config)"
+                    :disabled="loading"
+                  >
+                    {{ config.status === 'ENABLE' ? '停用' : '启用' }}
+                  </el-button>
+                  <el-button
+                    link
+                    size="small"
+                    class="history-btn"
+                    @click="showExecHistory(config)"
+                    :disabled="loading"
+                  >
+                    运行记录
+                  </el-button>
+                  <el-button
+                    v-if="config.type === 'STORE_ACTIVITY' && config.storeExtNotifyConfig?.storeInfo"
+                    link
+                    size="small"
+                    class="record-btn"
+                    @click="handleRecord(config)"
+                  >
+                    记录
+                  </el-button>
+                  <el-dropdown trigger="click" @command="(cmd: string) => handleCardCommand(cmd, config)">
+                    <el-button link size="small" class="more-btn" :disabled="loading">
+                      更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                    </el-button>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="detail">
+                          <el-icon><View /></el-icon>查看详情
+                        </el-dropdown-item>
+                        <el-dropdown-item command="edit">
+                          <el-icon><Edit /></el-icon>编辑
+                        </el-dropdown-item>
+                        <el-dropdown-item command="delete" divided>
+                          <span style="color: #ff4d4f"><el-icon><Delete /></el-icon>删除</span>
+                        </el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </div>
+              </div>
+            </transition>
           </div>
         </el-card>
       </div>
@@ -1042,7 +1067,7 @@ onUnmounted(() => {
   align-items: center;
 
   span {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
     color: #333;
   }
@@ -1053,22 +1078,22 @@ onUnmounted(() => {
 // ============================================
 .config-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(640px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 10px;
 
   @media screen and (min-width: 2640px) {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
   }
 
   @media screen and (min-width: 1980px) and (max-width: 2639px) {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  @media screen and (min-width: 1320px) and (max-width: 1979px) {
+  @media screen and (min-width: 1100px) and (max-width: 1979px) {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  @media screen and (max-width: 1319px) {
+  @media screen and (max-width: 1099px) {
     grid-template-columns: 1fr;
   }
 }
@@ -1078,47 +1103,101 @@ onUnmounted(() => {
 // ============================================
 .address-card {
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  border-radius: 12px;
+  border-radius: 10px;
   border: none;
   overflow: hidden;
   animation: fadeIn 0.5s ease forwards;
 
-  &:hover {
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08), 0 6px 6px rgba(0, 0, 0, 0.05);
-    transform: translateY(-4px);
+  :deep(.el-card__body) {
+    padding: 10px 12px;
   }
+
+  &.is-collapsed {
+    opacity: 0.85;
+  }
+
+  &:hover {
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08), 0 3px 5px rgba(0, 0, 0, 0.04);
+    transform: translateY(-2px);
+  }
+}
+
+.collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #999;
+  transition: all 0.2s;
+  margin-left: 2px;
+
+  &:hover {
+    color: #409eff;
+    background-color: #ecf5ff;
+  }
+}
+
+.collapse-enter-active,
+.collapse-leave-active {
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.collapse-enter-from,
+.collapse-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+
+.collapse-enter-to,
+.collapse-leave-from {
+  opacity: 1;
+  max-height: 300px;
 }
 
 .address-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
+
+  :deep(.el-tag) {
+    font-size: 11px;
+    padding: 0 6px;
+    height: 20px;
+    line-height: 20px;
+  }
 }
 
 .address-name {
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
   color: #333;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 // ============================================
 // Notify info
 // ============================================
 .notify-info {
-  margin-bottom: 15px;
+  margin-bottom: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0 10px;
 }
 
 .info-item {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
-  font-size: 14px;
+  margin-bottom: 2px;
+  font-size: 12px;
   color: #666;
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 // ============================================
@@ -1126,96 +1205,51 @@ onUnmounted(() => {
 // ============================================
 .operation-buttons {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   justify-content: flex-end;
   align-items: center;
-  margin-top: 15px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #f0f0f0;
 }
 
 .history-btn {
-  background-color: #f0f5ff !important;
   color: #722ed1 !important;
-  border-color: #d3adf7 !important;
-  border-radius: 8px !important;
-  font-weight: 500;
-  transition: all 0.25s ease;
-
-  &:hover {
-    background-color: #f9f0ff !important;
-    border-color: #b37feb !important;
-    transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(114, 46, 209, 0.15);
-  }
+  font-size: 12px !important;
+  padding: 0 !important;
+  height: auto !important;
 }
 
 .record-btn {
-  background-color: #fff7e6 !important;
   color: #d97706 !important;
-  border-color: #fcd34d !important;
-  border-radius: 8px !important;
-  font-weight: 500;
-  transition: all 0.25s ease;
-
-  &:hover {
-    background-color: #fef3c7 !important;
-    border-color: #fbbf24 !important;
-    transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.15);
-  }
+  font-size: 12px !important;
+  padding: 0 !important;
+  height: auto !important;
 }
 
 .enable-btn {
-  background-color: #f6ffed !important;
   color: #52c41a !important;
-  border-color: #b7eb8f !important;
-  border-radius: 8px !important;
-  font-weight: 500;
-  transition: all 0.25s ease;
-
-  &:hover {
-    background-color: #d9f7be !important;
-    border-color: #95de64 !important;
-    transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(82, 196, 26, 0.15);
-  }
+  font-size: 12px !important;
+  padding: 0 !important;
+  height: auto !important;
 }
 
 .disable-btn {
-  background-color: #fff7e6 !important;
   color: #fa8c16 !important;
-  border-color: #ffd591 !important;
-  border-radius: 8px !important;
-  font-weight: 500;
-  transition: all 0.25s ease;
-
-  &:hover {
-    background-color: #ffe7ba !important;
-    border-color: #ffc069 !important;
-    transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(250, 140, 22, 0.15);
-  }
+  font-size: 12px !important;
+  padding: 0 !important;
+  height: auto !important;
 }
 
 .more-btn {
-  background-color: #fafafa !important;
-  color: #666 !important;
-  border-color: #e0e0e0 !important;
-  border-radius: 8px !important;
-  font-weight: 500;
-  transition: all 0.25s ease;
-
-  &:hover {
-    background-color: #f5f5f5 !important;
-    color: #333 !important;
-    border-color: #d0d0d0 !important;
-    transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  }
+  color: #999 !important;
+  font-size: 12px !important;
+  padding: 0 !important;
+  height: auto !important;
 
   .el-icon--right {
-    margin-left: 4px;
-    font-size: 12px;
-    transition: transform 0.2s;
+    margin-left: 2px;
+    font-size: 11px;
   }
 }
 
@@ -1223,6 +1257,8 @@ onUnmounted(() => {
   background-color: #87ceeb !important;
   color: #fff !important;
   border-color: #87ceeb !important;
+  font-size: 12px !important;
+  padding: 6px 12px !important;
 
   &:hover {
     background-color: #6bb6e6 !important;
@@ -1235,27 +1271,27 @@ onUnmounted(() => {
 // ============================================
 .empty-state {
   text-align: center;
-  padding: 40px 20px;
+  padding: 24px 16px;
   background-color: #fff;
   border-radius: 8px;
-  margin-top: 20px;
+  margin-top: 10px;
 }
 
 // ============================================
 // Detail view
 // ============================================
 .detail-content {
-  padding: 20px;
+  padding: 12px;
 }
 
 .detail-section {
-  margin-bottom: 30px;
+  margin-bottom: 18px;
 
   h3 {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
     color: #333;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1264,26 +1300,29 @@ onUnmounted(() => {
 
 .detail-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 15px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
 }
 
 .detail-item {
   display: flex;
   align-items: center;
-  padding: 10px 0;
+  padding: 8px 0;
+  font-size: 12px;
   border-bottom: 1px solid #f0f0f0;
 
   label {
     font-weight: 500;
     color: #555;
-    min-width: 120px;
-    margin-right: 10px;
+    min-width: 100px;
+    margin-right: 8px;
+    font-size: 12px;
   }
 
   span {
     color: #333;
     flex: 1;
+    font-size: 12px;
   }
 }
 
@@ -1300,7 +1339,17 @@ onUnmounted(() => {
 // Utility
 // ============================================
 .mt-4 {
-  margin-top: 16px;
+  margin-top: 8px;
+}
+
+.outer-card {
+  :deep(.el-card__header) {
+    padding: 14px 16px;
+  }
+
+  :deep(.el-card__body) {
+    padding: 10px 12px 12px;
+  }
 }
 
 // ============================================
@@ -1314,7 +1363,7 @@ onUnmounted(() => {
     align-items: flex-start;
 
     span {
-      font-size: 18px;
+      font-size: 14px;
     }
 
     div {
@@ -1326,49 +1375,57 @@ onUnmounted(() => {
 
   .add-address-btn {
     flex: 1;
-    font-size: 14px !important;
+    font-size: 13px !important;
     padding: 10px 0 !important;
   }
 
   // 卡片网格
   .config-grid {
-    gap: 16px;
+    gap: 10px;
+    grid-template-columns: 1fr;
   }
 
   // 卡片内容
   .address-card {
     :deep(.el-card__body) {
-      padding: 16px;
+      padding: 10px;
     }
   }
 
   .address-header {
-    margin-bottom: 14px;
+    margin-bottom: 8px;
   }
 
   .address-name {
-    font-size: 17px;
+    font-size: 14px;
   }
 
   // 信息条目
-  .info-item {
-    font-size: 15px;
-    margin-bottom: 10px;
-    line-height: 1.7;
+  .notify-info {
+    display: block;
   }
 
-  // 操作按钮 - 增大触控区域
+  .info-item {
+    font-size: 13px;
+    margin-bottom: 4px;
+    line-height: 1.5;
+  }
+
+  // 操作按钮
   .operation-buttons {
-    gap: 10px;
-    margin-top: 16px;
+    gap: 14px;
+    margin-top: 8px;
+    padding-top: 8px;
     justify-content: flex-end;
 
     .el-button {
-      font-size: 14px !important;
-      padding: 8px 16px !important;
-      height: auto !important;
-      min-height: 36px;
+      font-size: 12px !important;
     }
+  }
+
+  // 移动端隐藏记录按钮
+  .record-btn {
+    display: none !important;
   }
 
   // 详情视图
@@ -1377,7 +1434,7 @@ onUnmounted(() => {
   }
 
   .detail-section h3 {
-    font-size: 17px;
+    font-size: 14px;
   }
 
   .detail-grid {
@@ -1390,17 +1447,17 @@ onUnmounted(() => {
     align-items: flex-start;
     gap: 4px;
     padding: 12px 0;
-    font-size: 15px;
+    font-size: 13px;
 
     label {
       min-width: auto;
       margin-right: 0;
-      font-size: 14px;
+      font-size: 12px;
       color: #888;
     }
 
     span {
-      font-size: 15px;
+      font-size: 13px;
     }
   }
 
@@ -1408,7 +1465,7 @@ onUnmounted(() => {
   .dialog-footer {
     .el-button {
       flex: 1;
-      font-size: 15px !important;
+      font-size: 13px !important;
       padding: 12px 0 !important;
       height: auto !important;
       min-height: 42px;
