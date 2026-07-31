@@ -236,7 +236,7 @@ onMounted(() => {
 
 <template>
   <nav class="navbar">
-    <router-link to="/" class="navbar-brand">小蚕活动平台</router-link>
+    <router-link to="/" class="navbar-brand">优惠活动平台</router-link>
     <div class="navbar-nav">
       <router-link to="/" class="nav-link" :class="{ active: currentPage === 'home' }">
         首页
