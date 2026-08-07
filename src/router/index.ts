@@ -39,6 +39,14 @@ const router = createRouter({
 
 export default router
 
+// 路由进入前，提前将路径中的 token 存入 localStorage
+router.beforeEach((to) => {
+  const token = to.params.token as string
+  if (token) {
+    localStorage.setItem('token', token)
+  }
+})
+
 // 路由变化后同步更新 NavBar 显示状态
 router.afterEach((to) => {
   const el = document.getElementById('app')
