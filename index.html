@@ -8,6 +8,15 @@
   </head>
   <body>
     <div id="app"></div>
+    <script>
+      // Vue 加载前同步判断，避免 NavBar 闪烁
+      if (window.location.pathname.startsWith('/s/')) {
+        document.getElementById('app').setAttribute('data-hide-nav', 'true')
+      }
+    </script>
+    <style>
+      #app[data-hide-nav="true"] .navbar { display: none !important; }
+    </style>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

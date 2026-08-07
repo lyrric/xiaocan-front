@@ -32,6 +32,7 @@ const searchForm = reactive({
   cityCode: null as number | null,
   latitude: '',
   longitude: '',
+  locationId: null as number | null,
   onlyAvailable: false,
   pageNum: 1,
   pageSize: 30,
@@ -47,6 +48,7 @@ const meituanSearchForm = reactive({
   name: '',
   latitude: '',
   longitude: '',
+  locationId: null as number | null,
   pvId: '',
 })
 const meituanHasNextPage = ref(true)
@@ -57,6 +59,7 @@ const waimaiSearchForm = reactive({
   name: '',
   latitude: '',
   longitude: '',
+  locationId: null as number | null,
   // 后端原样返回的完整分页游标，前端不修改，翻页时原样传回，首页为 null
   scrollPageData: null as Record<string, unknown> | null,
 })
@@ -101,8 +104,6 @@ let scrollObserver: IntersectionObserver | null = null
 const loadMoreTrigger = ref<HTMLElement | null>(null)
 const loadError = ref(false)
 const storeList = ref<any[]>([])
-const favoriteMap = ref<Map<string, any>>(new Map())
-const favoriteLoading = ref(false)
 
 // Address selection
 const selectedAddress = ref<any>(null)
@@ -326,6 +327,7 @@ async function fetchMeituanList(resetPage = true) {
   // 同步地址坐标
   meituanSearchForm.latitude = searchForm.latitude
   meituanSearchForm.longitude = searchForm.longitude
+  meituanSearchForm.locationId = searchForm.locationId
 
   loading.value = resetPage
 
@@ -371,6 +373,7 @@ async function fetchWaimaiList(resetPage = true) {
   // 同步地址坐标
   waimaiSearchForm.latitude = searchForm.latitude
   waimaiSearchForm.longitude = searchForm.longitude
+  waimaiSearchForm.locationId = searchForm.locationId
 
   loading.value = resetPage
 
@@ -462,47 +465,6 @@ async function fetchFavoriteList(resetPage = true) {
   }
 }
 
-async function loadFavorites() {
-  if (!selectedAddress.value || !selectedAddress.value.id) {
-    return
-  }
-  let storeTypes: string[] | undefined
-  if (activeTab.value === 'favorite') {
-    storeTypes = undefined
-  } else if (activeTab.value === 'xiaochan') {
-    storeTypes = ['XC_MANJIAN']
-  } else if (activeTab.value === 'meituan') {
-    storeTypes = ['XC_MTSJ']
-  } else if (activeTab.value === 'waimai') {
-    // 歪麦 tab 下有 WM_MANJIAN / WM_MTSJ 两种类型，同时传入
-    storeTypes = ['WM_MANJIAN', 'WM_MTSJ']
-  }
-  try {
-    const response = await api.post('/api/favorite/list', {
-      locationId: selectedAddress.value.id,
-      storeTypes,
-    })
-    if (response.data.success) {
-      const list: any[] = response.data.data || []
-      const map = new Map<string, any>()
-      list.forEach((item) => {
-        const key = getFavoriteKey(item.storeType, item.uniqueId)
-        if (key) {
-          map.set(key, item)
-        }
-      })
-      favoriteMap.value = map
-    }
-  } catch {
-    // ignore
-  }
-}
-
-function getFavoriteKey(storeType: string, uniqId: string) {
-  if (!storeType || !uniqId) return null
-  return `${storeType}-${uniqId}`
-}
-
 function getDefaultStoreType(): string {
   if (activeTab.value === 'meituan') return 'XC_MTSJ'
   if (activeTab.value === 'waimai') return 'WM_MANJIAN'
@@ -510,16 +472,7 @@ function getDefaultStoreType(): string {
 }
 
 function isFavorite(store: any) {
-  if (store.favoriteId) return true
-  const storeType = store.storeTypeEnum || getDefaultStoreType()
-  const key = getFavoriteKey(storeType, store.uniqId)
-  return key ? favoriteMap.value.has(key) : false
-}
-
-function getFavoriteRecord(store: any) {
-  const storeType = store.storeTypeEnum || getDefaultStoreType()
-  const key = getFavoriteKey(storeType, store.uniqId)
-  return key ? favoriteMap.value.get(key) : null
+  return !!store.favoriteId
 }
 
 async function handleFavoriteToggle(store: any) {
@@ -528,36 +481,21 @@ async function handleFavoriteToggle(store: any) {
     return
   }
 
-  const storeType = store.storeTypeEnum || getDefaultStoreType()
-
-  // 收藏列表模式下直接取消收藏
   if (store.favoriteId) {
     await handleRemoveFavorite(store)
-    return
-  }
-
-  const record = getFavoriteRecord(store)
-  if (record) {
-    await handleRemoveFavorite(store)
   } else {
+    const storeType = store.storeTypeEnum || getDefaultStoreType()
     await handleSaveFavorite(store, storeType)
   }
 }
 
 async function handleRemoveFavorite(store: any) {
-  const storeType = store.storeTypeEnum || getDefaultStoreType()
+  if (!store.favoriteId) return
   try {
-    const response = await api.post('/api/favorite/remove', {
-      locationId: selectedAddress.value?.id,
-      uniqueId: store.uniqId,
-      storeType,
-    })
+    const response = await api.delete(`/api/favorite/${store.favoriteId}`)
     if (response.data.success) {
       ElMessage.success('已取消收藏')
-      const key = getFavoriteKey(storeType, store.uniqId)
-      if (key) {
-        favoriteMap.value.delete(key)
-      }
+      store.favoriteId = null
       if (activeTab.value === 'favorite') {
         await fetchFavoriteList()
       }
@@ -582,7 +520,7 @@ async function handleSaveFavorite(store: any, storeType: string) {
     })
     if (response.data.success) {
       ElMessage.success('收藏成功')
-      await loadFavorites()
+      store.favoriteId = response.data.data
     } else {
       ElMessage.error(response.data.msg || '收藏失败')
     }
@@ -605,9 +543,6 @@ async function handleSearch(resetPage = true) {
     await fetchFavoriteList()
     return
   }
-  if (resetPage) {
-    await loadFavorites()
-  }
   if (activeTab.value === 'meituan') {
     await fetchMeituanList(resetPage)
   } else if (activeTab.value === 'waimai') {
@@ -621,7 +556,6 @@ async function handleTabChange(tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorit
   activeTab.value = tab
   loadError.value = false
   storeList.value = []
-  favoriteMap.value = new Map()
   pagination.hasNextPage = true
   meituanHasNextPage.value = true
   waimaiHasNextPage.value = true
@@ -630,8 +564,6 @@ async function handleTabChange(tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorit
     waimaiHasNextPage.value = false
     favoriteSearchForm.pageNum = 1
     pagination.currentPage = 1
-  } else {
-    await loadFavorites()
   }
   await handleSearch(true)
 }
@@ -933,6 +865,7 @@ async function handleAddressChange(selAddressId: string) {
       searchForm.cityCode = parseInt(addr.cityCode)
       searchForm.latitude = addr.latitude
       searchForm.longitude = addr.longitude
+      searchForm.locationId = parseInt(addr.id)
       saveSelectedAddressId(selAddressId)
       await handleSearch()
     }
@@ -941,6 +874,7 @@ async function handleAddressChange(selAddressId: string) {
     searchForm.cityCode = null
     searchForm.latitude = ''
     searchForm.longitude = ''
+    searchForm.locationId = null
     localStorage.removeItem('selectedAddressId')
   }
 }
@@ -973,6 +907,7 @@ async function loadDefaultAddress() {
           searchForm.cityCode = parseInt(foundAddress.cityCode)
           searchForm.latitude = foundAddress.latitude
           searchForm.longitude = foundAddress.longitude
+          searchForm.locationId = parseInt(foundAddress.id)
           handleSearch()
           return
         } else {
@@ -986,6 +921,7 @@ async function loadDefaultAddress() {
       searchForm.cityCode = parseInt(firstAddress.cityCode)
       searchForm.latitude = firstAddress.latitude
       searchForm.longitude = firstAddress.longitude
+      searchForm.locationId = parseInt(firstAddress.id)
       saveSelectedAddressId(firstAddress.id)
       handleSearch()
     } else {

@@ -28,7 +28,25 @@ const router = createRouter({
       name: 'store-inventory',
       component: () => import('../views/StoreInventoryHistoryView.vue'),
     },
+    {
+      path: '/s/:token/:id',
+      name: 'pushed-history',
+      component: () => import('../views/PushedHistoryView.vue'),
+      meta: { hideNav: true },
+    },
   ],
 })
 
 export default router
+
+// 路由变化后同步更新 NavBar 显示状态
+router.afterEach((to) => {
+  const el = document.getElementById('app')
+  if (el) {
+    if (to.meta.hideNav) {
+      el.setAttribute('data-hide-nav', 'true')
+    } else {
+      el.removeAttribute('data-hide-nav')
+    }
+  }
+})
