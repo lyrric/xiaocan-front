@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeUnmount, nextTick, inject } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, inject } from 'vue'
 import { ElMessage } from 'element-plus'
 import api from '../api'
 
@@ -184,6 +184,33 @@ function getNotifyTypeClass(notifyType: string) {
   return classes[notifyType] || 'type-tag'
 }
 
+// 按门店聚合历史记录（同一门店的多个活动合并到一张卡片）
+const groupedHistoryList = computed(() => {
+  const groupMap = new Map<string, any>()
+  const groups: any[] = []
+  for (const item of historyList.value) {
+    // 用门店名称 + 平台类型作为聚合 key
+    const key = `${item.name || ''}_${item.type || ''}_${item.uniqId || item.storeId || ''}`
+    let group = groupMap.get(key)
+    if (!group) {
+      group = {
+        key,
+        primary: item,
+        activities: [] as any[],
+        hasAvailable: false,
+        createTime: item.createTime,
+      }
+      groupMap.set(key, group)
+      groups.push(group)
+    }
+    group.activities.push(item)
+    if (item.leftNumber > 0) {
+      group.hasAvailable = true
+    }
+  }
+  return groups
+})
+
 function getStoreTypeName(storeType: string) {
   if (storeType === 'XC_MTSJ') return '美团赏金'
   if (storeType === 'XC_MANJIAN') return '小蚕满减'
@@ -334,55 +361,66 @@ onBeforeUnmount(() => {
       <!-- History list -->
       <div v-else class="history-list">
         <div
-          v-for="(item, index) in historyList"
-          :key="index"
+          v-for="group in groupedHistoryList"
+          :key="group.key"
           class="history-card"
+          :class="{ 'sold-out': !group.hasAvailable }"
         >
-          <!-- Time label -->
-          <div class="card-time">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-            <span>{{ formatTime(item.createTime) }}</span>
-          </div>
-
           <!-- Card main content -->
           <div class="card-main">
             <div class="store-avatar">
-              <img v-if="item.icon" :src="item.icon" :alt="item.name" />
-              <span v-else class="avatar-letter">{{ item.name?.charAt(0) || '?' }}</span>
+              <img v-if="group.primary.icon" :src="group.primary.icon" :alt="group.primary.name" />
+              <span v-else class="avatar-letter">{{ group.primary.name?.charAt(0) || '?' }}</span>
             </div>
             <div class="store-body">
               <div class="store-name-row">
-                <span class="store-name">{{ item.name }}</span>
-                <span :class="getPlatformClass(item.type)" class="badge">{{ getPlatformName(item.type) }}</span>
+                <span class="store-name">{{ group.primary.name }}</span>
               </div>
-              <div class="store-price-row">
-                <span v-if="item.rebateRatio" class="price-tag">
-                  返<em class="rebate">{{ item.rebateRatio }}%</em>&nbsp;最高<em>{{ item.rebateMax }}</em>元
+              <div class="store-meta-row">
+                <div class="store-meta-left">
+                  <span class="distance-tag">{{ group.primary.distanceStr }}</span>
+                  <span :class="getPlatformClass(group.primary.type)" class="badge">{{ getPlatformName(group.primary.type) }}</span>
+                  <span v-if="group.primary.storeTypeEnum" class="badge store-type-badge">{{ getStoreTypeName(group.primary.storeTypeEnum) }}</span>
+                </div>
+                <span class="card-time">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  <span>{{ formatTime(group.createTime) }}</span>
                 </span>
-                <span v-else class="price-tag">
-                  满<em>{{ item.price }}</em>返<em class="rebate">{{ item.rebatePrice }}</em>
-                </span>
-                <span v-if="item.distanceStr" class="distance-tag">{{ item.distanceStr }}</span>
               </div>
             </div>
           </div>
 
-          <!-- Card detail chips -->
-          <div class="card-tags">
-            <span :class="getNotifyTypeClass(item.notifyType)" class="info-chip">
-              {{ getNotifyTypeName(item.notifyType) }}
-            </span>
-            <span v-if="item.storeTypeEnum" class="info-chip chip-store-type">{{ getStoreTypeName(item.storeTypeEnum) }}</span>
-            <span class="info-chip">{{ item.startTime }}-{{ item.endTime }}</span>
-            <span
-              class="info-chip"
-              :class="{ 'chip-danger': item.leftNumber <= 0, 'chip-success': item.leftNumber > 0 }"
+          <!-- Activity list -->
+          <div class="activity-list" :class="{ 'single-activity': group.activities.length === 1 }">
+            <div
+              v-for="activity in group.activities"
+              :key="activity.id || activity.promotionId"
+              class="activity-row"
             >
-              {{ item.leftNumber > 0 ? '剩余 ' + item.leftNumber : '已售罄' }}
-            </span>
+              <div class="activity-info">
+                <span v-if="activity.rebateRatio" class="price-tag">
+                  返<em class="rebate">{{ activity.rebateRatio }}%</em>&nbsp;最高<em>{{ activity.rebateMax }}</em>元
+                </span>
+                <span v-else class="price-tag">
+                  满<em>{{ activity.price }}</em>返<em class="rebate">{{ activity.rebatePrice }}</em>
+                </span>
+                <div class="activity-tags">
+                  <span :class="getNotifyTypeClass(activity.notifyType)" class="info-chip">
+                    {{ getNotifyTypeName(activity.notifyType) }}
+                  </span>
+                  <span class="info-chip">{{ activity.startTime }}-{{ activity.endTime }}</span>
+                  <span
+                    class="info-chip"
+                    :class="{ 'chip-danger': activity.leftNumber <= 0, 'chip-success': activity.leftNumber > 0 }"
+                  >
+                    {{ activity.leftNumber > 0 ? '剩余 ' + activity.leftNumber : '已售罄' }}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -760,33 +798,19 @@ $radius-full: 999px;
 
 .history-card {
   background: $card-bg;
-  border-radius: $radius-lg;
-  padding: 20px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba($border, 0.4);
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  position: relative;
+  border-radius: $radius-md;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.2s;
   overflow: hidden;
+  max-width: 100%;
 
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 3px;
-    height: 100%;
-    background: $primary-gradient;
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
-
-  &:hover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-    transform: translateY(-2px);
-    border-color: rgba($primary, 0.2);
-
-    &::before {
-      opacity: 1;
+  &.sold-out {
+    .card-main {
+      opacity: 0.55;
+    }
+    .activity-list .info-chip:not(.chip-danger) {
+      opacity: 0.55;
     }
   }
 }
@@ -797,13 +821,10 @@ $radius-full: 999px;
 .card-time {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 12px;
+  gap: 4px;
+  font-size: 11px;
   color: $text-hint;
-  margin-bottom: 12px;
-  padding: 3px 10px 3px 6px;
-  background: #f9fafb;
-  border-radius: $radius-full;
+  flex-shrink: 0;
 }
 
 // ============================================
@@ -811,21 +832,20 @@ $radius-full: 999px;
 // ============================================
 .card-main {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   align-items: flex-start;
 }
 
 .store-avatar {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   border-radius: $radius-sm;
-  background: $primary-gradient;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
 
   img {
     width: 100%;
@@ -835,7 +855,7 @@ $radius-full: 999px;
 
   .avatar-letter {
     color: #fff;
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 600;
   }
 }
@@ -847,9 +867,8 @@ $radius-full: 999px;
 
 .store-name-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
-  flex-wrap: wrap;
   margin-bottom: 6px;
 }
 
@@ -857,10 +876,14 @@ $radius-full: 999px;
   font-size: 15px;
   font-weight: 600;
   color: $text-primary;
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 55%;
+  word-break: break-all;
+  line-height: 1.35;
 }
 
 .badge {
@@ -873,9 +896,25 @@ $radius-full: 999px;
   flex-shrink: 0;
 }
 
-.badge-new {
-  background: linear-gradient(135deg, #ff6b6b, #ff8e53);
-  color: #fff;
+.store-type-badge {
+  background: #f3e8ff;
+  color: #7c3aed;
+}
+
+.store-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+  color: $text-hint;
+}
+
+.store-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .platform-tag {
@@ -891,12 +930,6 @@ $radius-full: 999px;
     background: #f8d7da;
     color: #721c24;
   }
-}
-
-.store-price-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
 
 .price-tag {
@@ -923,6 +956,49 @@ $radius-full: 999px;
 }
 
 // ============================================
+// Activity list
+// ============================================
+.activity-list {
+  margin-top: 10px;
+  border-top: 1px solid #f3f4f6;
+
+  &.single-activity {
+    .activity-row {
+      padding: 10px 0 0;
+    }
+  }
+}
+
+.activity-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f7f8fa;
+
+  &:last-of-type {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+}
+
+.activity-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.activity-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+// ============================================
 // Card tags
 // ============================================
 .card-tags {
@@ -941,7 +1017,9 @@ $radius-full: 999px;
   background: #f3f4f6;
   color: $text-secondary;
   white-space: nowrap;
-  transition: background 0.2s;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 
   &.chip-success {
     background: #dcfce7;
@@ -952,12 +1030,6 @@ $radius-full: 999px;
   &.chip-danger {
     background: #fee2e2;
     color: #991b1b;
-    font-weight: 500;
-  }
-
-  &.chip-store-type {
-    background: #f3e8ff;
-    color: #7c3aed;
     font-weight: 500;
   }
 }
@@ -1080,16 +1152,16 @@ $radius-full: 999px;
   }
 
   .history-card {
-    padding: 22px;
+    padding: 18px;
+
+    &:hover {
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    }
   }
 
   .store-avatar {
-    width: 60px;
-    height: 60px;
-  }
-
-  .store-name {
-    max-width: 65%;
+    width: 64px;
+    height: 64px;
   }
 }
 
@@ -1154,14 +1226,8 @@ $radius-full: 999px;
     border: none;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 
-    &::before {
-      display: none;
-    }
-
     &:hover {
-      transform: none;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-      border-color: transparent;
     }
   }
 
@@ -1174,8 +1240,6 @@ $radius-full: 999px;
     padding: 60px 20px;
   }
 
-  .card-tags {
-    border-top-style: solid;
-  }
+
 }
 </style>
