@@ -255,12 +255,12 @@ const currentTabHasNextPage = computed(() => {
   return pagination.hasNextPage
 })
 
-// 按 uniqId 聚合门店列表
+// 按 type + uniqId 聚合门店列表
 const groupedStoreList = computed(() => {
   const groupMap = new Map<string, any>()
   const groups: any[] = []
   for (const store of storeList.value) {
-    const key = store.uniqId || String(store.promotionId || store.storeId || Math.random())
+    const key = `${store.type || ''}_${store.uniqId || String(store.promotionId || store.storeId || Math.random())}`
     let group = groupMap.get(key)
     if (!group) {
       group = {
@@ -280,12 +280,12 @@ const groupedStoreList = computed(() => {
   return groups
 })
 
-// 其它搜索结果按 平台类型+uniqId 聚合，复用首页门店卡片
+// 其它搜索结果按 type+storeTypeEnum+uniqId 聚合，复用首页门店卡片
 const otherSearchGroupedList = computed(() => {
   const groupMap = new Map<string, any>()
   const groups: any[] = []
   for (const store of otherSearchResults.value) {
-    const key = `${store.storeTypeEnum || ''}_${store.uniqId || String(store.promotionId || store.storeId || Math.random())}`
+    const key = `${store.type || ''}_${store.storeTypeEnum || ''}_${store.uniqId || String(store.promotionId || store.storeId || Math.random())}`
     let group = groupMap.get(key)
     if (!group) {
       group = {

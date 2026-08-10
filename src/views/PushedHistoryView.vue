@@ -22,12 +22,12 @@ function isFavorite(store: any) {
   return !!store.favoriteId
 }
 
-// 按门店聚合（同 HomeView 的 groupedStoreList）
+// 按 type + uniqId 聚合（同 HomeView 的 groupedStoreList）
 const groupedStoreList = computed(() => {
   const groupMap = new Map<string, any>()
   const groups: any[] = []
   for (const store of storeList.value) {
-    const key = store.uniqId || String(store.promotionId || store.storeId || Math.random())
+    const key = `${store.type || ''}_${store.uniqId || String(store.promotionId || store.storeId || Math.random())}`
     let group = groupMap.get(key)
     if (!group) {
       group = {
