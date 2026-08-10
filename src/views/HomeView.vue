@@ -23,6 +23,38 @@ const authState = inject<{
 const loading = ref(false)
 const actionLoading = reactive<Record<string, boolean>>({})
 
+// 搜索历史（最近5条不重复）
+const SEARCH_HISTORY_KEY = 'xiaocan_search_history'
+const searchHistory = ref<string[]>(JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || '[]'))
+const searchInputFocused = ref(false)
+
+function addToSearchHistory(keyword: string) {
+  const trimmed = keyword.trim()
+  if (!trimmed) return
+  const list = searchHistory.value.filter(item => item !== trimmed)
+  list.unshift(trimmed)
+  searchHistory.value = list.slice(0, 5)
+  localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory.value))
+}
+
+function clearSearchHistory() {
+  searchHistory.value = []
+  localStorage.removeItem(SEARCH_HISTORY_KEY)
+}
+
+function applySearchHistory(keyword: string) {
+  currentSearchName.value = keyword
+  searchInputFocused.value = false
+  handleSearch()
+}
+
+function onSearchInputBlur() {
+  // 延迟隐藏，以便点击历史标签时能触发 mousedown
+  setTimeout(() => {
+    searchInputFocused.value = false
+  }, 150)
+}
+
 // Tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorite'
 const activeTab = ref<'xiaochan' | 'meituan' | 'waimai' | 'favorite'>('xiaochan')
 
@@ -538,7 +570,10 @@ function getStoreTypeName(storeType: string) {
 }
 
 async function handleSearch(resetPage = true) {
-  if (resetPage) loadError.value = false
+  if (resetPage) {
+    loadError.value = false
+    addToSearchHistory(currentSearchName.value)
+  }
   if (activeTab.value === 'favorite') {
     await fetchFavoriteList()
     return
@@ -972,7 +1007,7 @@ function findAddressById(addressId: string) {
   if (!addressId || !addressOptions.value.length) {
     return null
   }
-  return addressOptions.value.find((addr: any) => addr.id === addressId)
+  return addressOptions.value.find((addr: any) => String(addr.id) === String(addressId))
 }
 
 function formatStoreName(name: string) {
@@ -1186,6 +1221,8 @@ onBeforeUnmount(() => {
           type="search"
           placeholder="搜索门店名称"
           enterkeyhint="search"
+          @focus="searchInputFocused = true"
+          @blur="onSearchInputBlur"
           @keyup.enter="handleSearch()"
         />
         <div v-if="currentSearchName" class="search-clear" @click="currentSearchName = ''; handleSearch()">
@@ -1195,6 +1232,22 @@ onBeforeUnmount(() => {
         </div>
         <div class="search-btn" @click="handleSearch()">
           搜索
+        </div>
+      </div>
+
+      <!-- Search history dropdown -->
+      <div v-if="searchInputFocused && searchHistory.length > 0" class="search-history">
+        <div class="search-history-header">
+          <span class="search-history-title">历史搜索</span>
+          <span class="search-history-clear" @mousedown.prevent="clearSearchHistory">清空</span>
+        </div>
+        <div class="search-history-tags">
+          <span
+            v-for="(item, index) in searchHistory"
+            :key="index"
+            class="search-history-tag"
+            @mousedown.prevent="applySearchHistory(item)"
+          >{{ item }}</span>
         </div>
       </div>
 
@@ -1873,6 +1926,58 @@ $radius-full: 999px;
 
   &:active {
     background: #3d5bd4;
+  }
+}
+
+.search-history {
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.search-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.search-history-title {
+  font-size: 12px;
+  color: #999;
+}
+
+.search-history-clear {
+  font-size: 12px;
+  color: #999;
+  cursor: pointer;
+
+  &:active {
+    color: #666;
+  }
+}
+
+.search-history-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.search-history-tag {
+  display: inline-block;
+  background: #f3f4f6;
+  color: #333;
+  font-size: 13px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+
+  &:active {
+    background: #e5e7eb;
   }
 }
 
