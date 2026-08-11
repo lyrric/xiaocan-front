@@ -12,22 +12,22 @@ const authState = inject<{
 }>('authState')!
 
 const addressList = ref<any[]>([])
-const regionOptions = ref<any[]>([])
-const regionProps = { value: 'code', label: 'name', children: 'child' }
+const regionList = ref<{ name: string; code: string }[]>([])
+const regionLoading = ref(false)
 
 const formRef = ref<FormInstance>()
 const form = reactive({
   id: null as string | null,
   name: '',
   address: '',
-  region: [] as string[],
+  regionCode: null as string | null,
   cityCode: null as number | null,
   addressKeyword: '',
   selectedAddress: null as any,
 })
 
 const rules = {
-  region: [{ required: true, message: '请选择所在地区', trigger: 'change' }],
+  regionCode: [{ required: true, message: '请选择所在地区', trigger: 'change' }],
   selectedAddress: [{ required: true, message: '请选择详细地址', trigger: 'change' }],
 }
 
@@ -51,16 +51,19 @@ async function loadAddressList() {
   }
 }
 
-async function loadRegionOptions() {
+async function searchRegion(key: string) {
+  regionLoading.value = true
   try {
-    const response = await api.get('/api/location/cityCode')
+    const response = await api.get('/api/location/searchRegion', { key: key || '' })
     if (response.data.success) {
-      regionOptions.value = response.data.data || []
+      regionList.value = response.data.data || []
     } else {
-      ElMessage.error('获取地区数据失败')
+      regionList.value = []
     }
   } catch {
-    ElMessage.error('获取地区数据失败，请检查网络连接')
+    regionList.value = []
+  } finally {
+    regionLoading.value = false
   }
 }
 
@@ -76,7 +79,7 @@ function startEditAddress(address: any) {
   form.id = address.id
   form.name = address.name
   form.address = address.address
-  form.region = []
+  form.regionCode = address.cityCode ? String(address.cityCode) : null
   form.cityCode = address.cityCode
   form.addressKeyword = ''
   form.selectedAddress = null
@@ -124,20 +127,26 @@ function resetForm() {
   form.id = null
   form.name = ''
   form.address = ''
-  form.region = []
+  form.regionCode = null
   form.cityCode = null
   form.addressKeyword = ''
   form.selectedAddress = null
   formRef.value?.resetFields()
 }
 
-function handleRegionChange(values: string[]) {
-  if (values && values.length > 0) {
-    form.cityCode = parseInt(values[values.length - 1] ?? '0')
+function handleRegionChange(code: string) {
+  if (code) {
+    form.cityCode = parseInt(code)
   } else {
     form.cityCode = null
     form.selectedAddress = null
     form.addressKeyword = ''
+  }
+}
+
+function handleRegionVisibleChange(visible: boolean) {
+  if (visible && regionList.value.length === 0) {
+    searchRegion('')
   }
 }
 
@@ -208,7 +217,7 @@ onMounted(async () => {
   // 等待认证完成
   await authState?.waitForAuth()
   loadAddressList()
-  loadRegionOptions()
+  searchRegion('')
 })
 </script>
 
@@ -276,16 +285,26 @@ onMounted(async () => {
       </template>
 
       <el-form :model="form" ref="formRef" :rules="rules" label-width="100px" class="mt-4">
-        <el-form-item label="所在地区" prop="region">
-          <el-cascader
-            v-model="form.region"
-            :options="regionOptions"
-            :props="regionProps"
+        <el-form-item label="所在地区" prop="regionCode">
+          <el-select
+            v-model="form.regionCode"
+            filterable
+            remote
+            :remote-method="searchRegion"
+            :loading="regionLoading"
+            placeholder="请输入关键字搜索地区"
             clearable
-            placeholder="请选择省/市/区"
             @change="handleRegionChange"
+            @visible-change="handleRegionVisibleChange"
             style="width: 100%"
-          />
+          >
+            <el-option
+              v-for="item in regionList"
+              :key="item.code"
+              :label="item.name"
+              :value="item.code"
+            />
+          </el-select>
         </el-form-item>
 
         <el-form-item label="详细地址" prop="selectedAddress" v-if="form.cityCode">
