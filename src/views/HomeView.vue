@@ -2676,6 +2676,8 @@ $radius-full: 999px;
     .store-card {
       border: 1px solid #f0f2f5;
       box-shadow: none;
+      // 防止 flex 布局压缩卡片高度导致 activity-list 被裁剪
+      flex-shrink: 0;
     }
   }
 
