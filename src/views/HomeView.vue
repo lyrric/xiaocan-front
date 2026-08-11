@@ -1537,7 +1537,6 @@ onBeforeUnmount(() => {
                       </span>
                       <div class="activity-tags">
                         <span class="info-chip">{{ activity.startTime }}-{{ activity.endTime }}</span>
-                        <span v-if="activity.rebateConditionStr" class="info-chip">{{ activity.rebateConditionStr }}</span>
                         <span
                           class="info-chip"
                           :class="{ 'chip-danger': activity.leftNumber <= 0, 'chip-success': activity.leftNumber > 0 }"
