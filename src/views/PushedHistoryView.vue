@@ -238,6 +238,7 @@ onMounted(() => {
                   <span :class="getPlatformClass(group.primary.type)" class="badge">{{ getPlatformName(group.primary.type) }}</span>
                   <span v-if="group.primary.storeTypeEnum" class="badge store-type-badge">{{ getStoreTypeName(group.primary.storeTypeEnum) }}</span>
                 </div>
+                <span v-if="group.primary.locationName" class="location-name" :title="group.primary.locationName">{{ group.primary.locationName }}</span>
               </div>
             </div>
           </div>
@@ -542,6 +543,20 @@ $radius-full: 999px;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+.location-name {
+  font-size: 12px;
+  color: $text-hint;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+  margin-left: 6px;
 }
 
 .badge {
