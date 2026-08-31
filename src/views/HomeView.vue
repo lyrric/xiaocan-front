@@ -523,13 +523,19 @@ async function handleFavoriteToggle(store: any) {
 
 async function handleRemoveFavorite(store: any) {
   if (!store.favoriteId) return
+  const favoriteId = store.favoriteId
   try {
-    const response = await api.delete(`/api/favorite/${store.favoriteId}`)
+    const response = await api.delete(`/api/favorite/${favoriteId}`)
     if (response.data.success) {
       ElMessage.success('已取消收藏')
       store.favoriteId = null
       if (activeTab.value === 'favorite') {
-        await fetchFavoriteList()
+        // 本地移除该收藏的全部条目，避免重新加载列表导致页面刷新
+        storeList.value = storeList.value.filter((item: any) => item.favoriteId !== favoriteId)
+        // 当前列表被删空且还有下一页时，静默加载下一页补充
+        if (storeList.value.length === 0 && pagination.hasNextPage) {
+          loadNextPage()
+        }
       }
     } else {
       ElMessage.error(response.data.msg || '取消收藏失败')
