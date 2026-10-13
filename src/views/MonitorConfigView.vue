@@ -850,7 +850,11 @@ onUnmounted(() => {
         </template>
 
         <el-form-item label="门店类型">
-          <el-select v-model="form.storeType" style="width: 100%">
+          <el-select
+            v-model="form.storeType"
+            style="width: 100%"
+            :disabled="isEdit && currentEditConfig?.type === 'STORE_ACTIVITY'"
+          >
             <el-option
               v-for="opt in storeTypeOptions"
               :key="opt.value"
