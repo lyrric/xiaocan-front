@@ -8,6 +8,11 @@ const router = createRouter({
       redirect: '/monitor',
     },
     {
+      path: '/home',
+      name: 'home',
+      component: () => import('../views/HomeView.vue'),
+    },
+    {
       path: '/location',
       name: 'location',
       component: () => import('../views/LocationView.vue'),
