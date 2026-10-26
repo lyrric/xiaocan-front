@@ -56,7 +56,7 @@ function onSearchInputBlur() {
 }
 
 // Tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorite'
-const activeTab = ref<'xiaochan' | 'meituan' | 'waimai' | 'favorite'>('xiaochan')
+const activeTab = ref<'xiaochan' | 'meituan' | 'waimai' | 'favorite'>('favorite')
 
 const searchForm = reactive({
   name: '',
