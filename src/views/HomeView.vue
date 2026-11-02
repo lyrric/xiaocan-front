@@ -324,7 +324,7 @@ async function fetchXiaochanList(resetPage = true) {
       } else {
         storeList.value = [...storeList.value, ...newData]
       }
-      pagination.hasNextPage = newData.length >= searchForm.pageSize
+      pagination.hasNextPage = newData.length > 0
     } else {
       ElMessage.error(response.data.msg || '查询失败')
       loadError.value = !resetPage
@@ -702,9 +702,9 @@ async function refreshCurrentPageData() {
         const pageData = pageResponse.data.data
         allData = [...allData, ...pageData]
         if (page === originalCurrentPage) {
-          pagination.hasNextPage = pageData.length >= searchForm.pageSize
+          pagination.hasNextPage = pageData.length > 0
         }
-        if (pageData.length < searchForm.pageSize) {
+        if (pageData.length === 0) {
           pagination.hasNextPage = false
           break
         }
