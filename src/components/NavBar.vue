@@ -6,6 +6,7 @@ import { Key, Select, User, Message, Unlock, UserFilled } from '@element-plus/ic
 import api from '../api'
 
 const route = useRoute()
+const emit = defineEmits<{ 'home-click': [] }>()
 
 // 注入认证状态
 const authState = inject<{
@@ -236,9 +237,9 @@ onMounted(() => {
 
 <template>
   <nav class="navbar">
-    <router-link to="/" class="navbar-brand">优惠活动平台</router-link>
+    <router-link to="/" class="navbar-brand" @click="emit('home-click')">优惠活动平台</router-link>
     <div class="navbar-nav">
-      <router-link to="/home" class="nav-link" :class="{ active: currentPage === 'home' }">
+      <router-link to="/home" class="nav-link" :class="{ active: currentPage === 'home' }" @click="emit('home-click')">
         首页
       </router-link>
       <router-link

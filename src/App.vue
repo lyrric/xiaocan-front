@@ -2,6 +2,9 @@
 import { ref, provide, readonly } from 'vue'
 import NavBar from './components/NavBar.vue'
 
+const homeNavigationVersion = ref(0)
+provide('homeNavigationVersion', readonly(homeNavigationVersion))
+
 // 认证状态管理
 const isAuthenticated = ref(false)
 let authResolve: () => void
@@ -28,7 +31,7 @@ provide('authState', {
 
 <template>
   <div class="container">
-    <NavBar />
+    <NavBar @home-click="homeNavigationVersion++" />
     <router-view v-slot="{ Component }">
       <keep-alive include="HomeView">
         <component :is="Component" />
