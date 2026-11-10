@@ -5,7 +5,7 @@ export default {
 </script>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, inject } from 'vue'
+import { ref, reactive, computed, onMounted, onActivated, onBeforeUnmount, nextTick, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
@@ -21,6 +21,8 @@ const authState = inject<{
 }>('authState')!
 
 const loading = ref(false)
+const hasSearched = ref(false)
+let listRequestVersion = 0
 const actionLoading = reactive<Record<string, boolean>>({})
 
 // 搜索历史（最近5条不重复）
@@ -45,7 +47,7 @@ function clearSearchHistory() {
 function applySearchHistory(keyword: string) {
   currentSearchName.value = keyword
   searchInputFocused.value = false
-  handleSearch()
+  resetSearchResults()
 }
 
 function onSearchInputBlur() {
@@ -71,7 +73,7 @@ const searchForm = reactive({
 })
 const pagination = reactive({
   currentPage: 1,
-  hasNextPage: true,
+  hasNextPage: false,
   isLoadingMore: false,
 })
 
@@ -306,6 +308,7 @@ const otherSearchGroupedList = computed(() => {
 })
 
 async function fetchXiaochanList(resetPage = true) {
+  const requestVersion = ++listRequestVersion
   if (resetPage) {
     searchForm.pageNum = 1
     pagination.currentPage = 1
@@ -316,6 +319,7 @@ async function fetchXiaochanList(resetPage = true) {
 
   try {
     const response = await api.post('/api/xiaochan/query', searchForm)
+    if (requestVersion !== listRequestVersion) return
     if (response.data.success) {
       loadError.value = false
       const newData = response.data.data || []
@@ -334,6 +338,7 @@ async function fetchXiaochanList(resetPage = true) {
       }
     }
   } catch {
+    if (requestVersion !== listRequestVersion) return
     ElMessage.error('网络错误，请稍后重试')
     loadError.value = !resetPage
     if (!resetPage) {
@@ -341,15 +346,18 @@ async function fetchXiaochanList(resetPage = true) {
       searchForm.pageNum = pagination.currentPage
     }
   } finally {
-    loading.value = false
-    pagination.isLoadingMore = false
-    nextTick(() => {
-      reinitScrollObserver()
-    })
+    if (requestVersion === listRequestVersion) {
+      loading.value = false
+      pagination.isLoadingMore = false
+      nextTick(() => {
+        reinitScrollObserver()
+      })
+    }
   }
 }
 
 async function fetchMeituanList(resetPage = true) {
+  const requestVersion = ++listRequestVersion
   if (resetPage) {
     meituanSearchForm.pvId = ''
     meituanHasNextPage.value = true
@@ -365,6 +373,7 @@ async function fetchMeituanList(resetPage = true) {
 
   try {
     const response = await api.post('/api/xiaochan/mtsj', meituanSearchForm)
+    if (requestVersion !== listRequestVersion) return
     if (response.data.success) {
       loadError.value = false
       const data = response.data.data
@@ -383,18 +392,22 @@ async function fetchMeituanList(resetPage = true) {
       loadError.value = !resetPage
     }
   } catch {
+    if (requestVersion !== listRequestVersion) return
     ElMessage.error('网络错误，请稍后重试')
     loadError.value = !resetPage
   } finally {
-    loading.value = false
-    meituanIsLoadingMore.value = false
-    nextTick(() => {
-      reinitScrollObserver()
-    })
+    if (requestVersion === listRequestVersion) {
+      loading.value = false
+      meituanIsLoadingMore.value = false
+      nextTick(() => {
+        reinitScrollObserver()
+      })
+    }
   }
 }
 
 async function fetchWaimaiList(resetPage = true) {
+  const requestVersion = ++listRequestVersion
   if (resetPage) {
     // 重新查询时重置分页游标
     waimaiSearchForm.scrollPageData = null
@@ -411,6 +424,7 @@ async function fetchWaimaiList(resetPage = true) {
 
   try {
     const response = await api.post('/api/wmmt/shopList', waimaiSearchForm)
+    if (requestVersion !== listRequestVersion) return
     if (response.data.success) {
       loadError.value = false
       const data = response.data.data
@@ -429,14 +443,17 @@ async function fetchWaimaiList(resetPage = true) {
       loadError.value = !resetPage
     }
   } catch {
+    if (requestVersion !== listRequestVersion) return
     ElMessage.error('网络错误，请稍后重试')
     loadError.value = !resetPage
   } finally {
-    loading.value = false
-    waimaiIsLoadingMore.value = false
-    nextTick(() => {
-      reinitScrollObserver()
-    })
+    if (requestVersion === listRequestVersion) {
+      loading.value = false
+      waimaiIsLoadingMore.value = false
+      nextTick(() => {
+        reinitScrollObserver()
+      })
+    }
   }
 }
 
@@ -446,6 +463,7 @@ async function fetchFavoriteList(resetPage = true) {
     return
   }
 
+  const requestVersion = ++listRequestVersion
   if (resetPage) {
     favoriteSearchForm.pageNum = 1
     pagination.currentPage = 1
@@ -462,6 +480,7 @@ async function fetchFavoriteList(resetPage = true) {
       pageNum: favoriteSearchForm.pageNum,
       pageSize: favoriteSearchForm.pageSize,
     })
+    if (requestVersion !== listRequestVersion) return
     if (response.data.success) {
       loadError.value = false
       const pageData = response.data.data || {}
@@ -482,6 +501,7 @@ async function fetchFavoriteList(resetPage = true) {
       }
     }
   } catch {
+    if (requestVersion !== listRequestVersion) return
     ElMessage.error('网络错误，请稍后重试')
     loadError.value = !resetPage
     if (!resetPage) {
@@ -489,11 +509,13 @@ async function fetchFavoriteList(resetPage = true) {
       favoriteSearchForm.pageNum = pagination.currentPage
     }
   } finally {
-    loading.value = false
-    pagination.isLoadingMore = false
-    nextTick(() => {
-      reinitScrollObserver()
-    })
+    if (requestVersion === listRequestVersion) {
+      loading.value = false
+      pagination.isLoadingMore = false
+      nextTick(() => {
+        reinitScrollObserver()
+      })
+    }
   }
 }
 
@@ -576,6 +598,7 @@ function getStoreTypeName(storeType: string) {
 }
 
 async function handleSearch(resetPage = true) {
+  hasSearched.value = true
   if (resetPage) {
     loadError.value = false
     addToSearchHistory(currentSearchName.value)
@@ -593,25 +616,33 @@ async function handleSearch(resetPage = true) {
   }
 }
 
-async function handleTabChange(tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorite') {
-  activeTab.value = tab
+function resetSearchResults() {
+  // 作废上一次搜索，避免旧请求覆盖等待搜索的提示。
+  listRequestVersion++
+  hasSearched.value = false
+  loading.value = false
   loadError.value = false
   storeList.value = []
-  pagination.hasNextPage = true
-  meituanHasNextPage.value = true
-  waimaiHasNextPage.value = true
-  if (tab === 'favorite') {
-    meituanHasNextPage.value = false
-    waimaiHasNextPage.value = false
-    favoriteSearchForm.pageNum = 1
-    pagination.currentPage = 1
-  }
-  await handleSearch(true)
+  pagination.hasNextPage = false
+  pagination.isLoadingMore = false
+  pagination.currentPage = 1
+  searchForm.pageNum = 1
+  favoriteSearchForm.pageNum = 1
+  meituanHasNextPage.value = false
+  meituanIsLoadingMore.value = false
+  waimaiHasNextPage.value = false
+  waimaiIsLoadingMore.value = false
+  scrollObserver?.disconnect()
+}
+
+function handleTabChange(tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorite') {
+  activeTab.value = tab
+  resetSearchResults()
 }
 
 function handleSort(orderType: number) {
   searchForm.orderType = orderType
-  handleSearch()
+  resetSearchResults()
 }
 
 function initScrollObserver() {
@@ -660,6 +691,7 @@ function reinitScrollObserver() {
 }
 
 async function loadNextPage() {
+  if (!hasSearched.value) return
   if (loadError.value) return
   if (activeTab.value === 'meituan') {
     if (!meituanHasNextPage.value || meituanIsLoadingMore.value || loading.value) return
@@ -690,6 +722,8 @@ function retryLoadMore() {
 }
 
 async function refreshCurrentPageData() {
+  if (!hasSearched.value) return
+  const requestVersion = ++listRequestVersion
   const originalPageNum = searchForm.pageNum
   const originalCurrentPage = pagination.currentPage
 
@@ -698,6 +732,7 @@ async function refreshCurrentPageData() {
     for (let page = 1; page <= originalCurrentPage; page++) {
       searchForm.pageNum = page
       const pageResponse = await api.post('/api/xiaochan/query', searchForm)
+      if (requestVersion !== listRequestVersion) return
       if (pageResponse.data.success && pageResponse.data.data) {
         const pageData = pageResponse.data.data
         allData = [...allData, ...pageData]
@@ -717,10 +752,13 @@ async function refreshCurrentPageData() {
       reinitScrollObserver()
     })
   } catch {
+    if (requestVersion !== listRequestVersion) return
     ElMessage.error('刷新数据失败，请稍后重试')
   } finally {
-    searchForm.pageNum = originalPageNum
-    pagination.currentPage = originalCurrentPage
+    if (requestVersion === listRequestVersion) {
+      searchForm.pageNum = originalPageNum
+      pagination.currentPage = originalCurrentPage
+    }
   }
 }
 
@@ -908,7 +946,7 @@ async function handleAddressChange(selAddressId: string) {
       searchForm.longitude = addr.longitude
       searchForm.locationId = parseInt(addr.id)
       saveSelectedAddressId(selAddressId)
-      await handleSearch()
+      resetSearchResults()
     }
   } else {
     selectedAddress.value = null
@@ -917,6 +955,7 @@ async function handleAddressChange(selAddressId: string) {
     searchForm.longitude = ''
     searchForm.locationId = null
     localStorage.removeItem('selectedAddressId')
+    resetSearchResults()
   }
 }
 
@@ -949,7 +988,6 @@ async function loadDefaultAddress() {
           searchForm.latitude = foundAddress.latitude
           searchForm.longitude = foundAddress.longitude
           searchForm.locationId = parseInt(foundAddress.id)
-          handleSearch()
           return
         } else {
           localStorage.removeItem('selectedAddressId')
@@ -964,7 +1002,6 @@ async function loadDefaultAddress() {
       searchForm.longitude = firstAddress.longitude
       searchForm.locationId = parseInt(firstAddress.id)
       saveSelectedAddressId(firstAddress.id)
-      handleSearch()
     } else {
       showCreateAddressPrompt()
     }
@@ -985,7 +1022,6 @@ function showCreateAddressPrompt() {
     })
     .catch(() => {
       searchForm.cityCode = defaultCityCode
-      handleSearch()
     })
 }
 
@@ -1146,6 +1182,10 @@ function loadSavedAddress() {
   }
 }
 
+onActivated(() => {
+  handleTabChange('xiaochan')
+})
+
 onMounted(async () => {
   // 等待认证完成
   await authState?.waitForAuth()
@@ -1206,7 +1246,7 @@ onBeforeUnmount(() => {
           v-if="activeTab === 'xiaochan'"
           class="filter-toggle"
           :class="{ active: searchForm.onlyAvailable }"
-          @click="searchForm.onlyAvailable = !searchForm.onlyAvailable; handleSearch()"
+          @click="searchForm.onlyAvailable = !searchForm.onlyAvailable; resetSearchResults()"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
@@ -1231,7 +1271,7 @@ onBeforeUnmount(() => {
           @blur="onSearchInputBlur"
           @keyup.enter="handleSearch()"
         />
-        <div v-if="currentSearchName" class="search-clear" @click="currentSearchName = ''; handleSearch()">
+        <div v-if="currentSearchName" class="search-clear" @click="currentSearchName = ''; resetSearchResults()">
           <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
             <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/>
           </svg>
@@ -1336,8 +1376,12 @@ onBeforeUnmount(() => {
 
     <!-- Content area -->
     <div class="content">
+      <div v-if="!hasSearched" class="empty-state">
+        <p class="empty-desc">请点击搜索按钮获取活动信息</p>
+      </div>
+
       <!-- Loading state -->
-      <div v-if="loading" class="loading-container">
+      <div v-else-if="loading" class="loading-container">
         <div class="loading-skeleton" v-for="n in 3" :key="n">
           <div class="skeleton-avatar"></div>
           <div class="skeleton-info">
