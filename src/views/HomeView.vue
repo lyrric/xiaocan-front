@@ -80,10 +80,13 @@ const pagination = reactive({
 // 美团赏金专用状态
 const meituanSearchForm = reactive({
   name: '',
+  cityCode: null as number | null,
   latitude: '',
   longitude: '',
   locationId: null as number | null,
   pvId: '',
+  pageNum: 1,
+  pageSize: 20,
 })
 const meituanHasNextPage = ref(true)
 const meituanIsLoadingMore = ref(false)
@@ -360,19 +363,22 @@ async function fetchMeituanList(resetPage = true) {
   const requestVersion = ++listRequestVersion
   if (resetPage) {
     meituanSearchForm.pvId = ''
+    meituanSearchForm.pageNum = 1
     meituanHasNextPage.value = true
     storeList.value = []
   }
 
   // 同步地址坐标
+  meituanSearchForm.cityCode = searchForm.cityCode
   meituanSearchForm.latitude = searchForm.latitude
   meituanSearchForm.longitude = searchForm.longitude
   meituanSearchForm.locationId = searchForm.locationId
 
   loading.value = resetPage
 
+  const pageNum = resetPage ? 1 : meituanSearchForm.pageNum + 1
   try {
-    const response = await api.post('/api/xiaochan/mtsj', meituanSearchForm)
+    const response = await api.post('/api/xiaochan/mtsj', { ...meituanSearchForm, pageNum })
     if (requestVersion !== listRequestVersion) return
     if (response.data.success) {
       loadError.value = false
@@ -384,6 +390,7 @@ async function fetchMeituanList(resetPage = true) {
         storeList.value = [...storeList.value, ...newItems]
       }
       // 更新游标
+      meituanSearchForm.pageNum = pageNum
       meituanSearchForm.pvId = data.pagePvId || ''
       // pagePvId 为空或无数据时视为无下一页
       meituanHasNextPage.value = !!(data.pagePvId && newItems.length > 0)
@@ -628,6 +635,8 @@ function resetSearchResults() {
   pagination.currentPage = 1
   searchForm.pageNum = 1
   favoriteSearchForm.pageNum = 1
+  meituanSearchForm.pageNum = 1
+  meituanSearchForm.pvId = ''
   meituanHasNextPage.value = false
   meituanIsLoadingMore.value = false
   waimaiHasNextPage.value = false
