@@ -17,6 +17,7 @@ const router = useRouter()
 
 const configList = ref<any[]>([])
 const loading = ref(false)
+const pushingConfigIds = reactive(new Set<number>())
 const showDetail = ref(false)
 const currentDetail = ref<any>(null)
 
@@ -262,6 +263,31 @@ async function loadConfigList() {
     ElMessage.error('获取监控配置列表失败，请检查网络连接')
   } finally {
     loading.value = false
+  }
+}
+
+async function pushSameNameStores(config: any) {
+  if (pushingConfigIds.has(config.id)) return
+  pushingConfigIds.add(config.id)
+  try {
+    const response = await api.post('/api/notify/config/push-same-name', undefined, {
+      params: { configId: config.id },
+      timeout: 300000,
+    })
+    if (response.data.success) {
+      const count = response.data.data || 0
+      if (count > 0) {
+        ElMessage.success(`已推送 ${count} 条同名门店活动`)
+      } else {
+        ElMessage.info('未找到同名门店活动')
+      }
+    } else {
+      ElMessage.error(response.data.msg || '同名门店推送失败')
+    }
+  } catch {
+    // 请求拦截器统一展示错误信息。
+  } finally {
+    pushingConfigIds.delete(config.id)
   }
 }
 
@@ -641,6 +667,17 @@ onUnmounted(() => {
                 </div>
 
                 <div class="operation-buttons">
+                  <el-button
+                    v-if="config.type === 'MINIMUM_PAY' && config.storeType === 'XC_MANJIAN'"
+                    link
+                    size="small"
+                    type="primary"
+                    :loading="pushingConfigIds.has(config.id)"
+                    :disabled="loading"
+                    @click="pushSameNameStores(config)"
+                  >
+                    推送同名门店
+                  </el-button>
                   <el-button
                     link
                     size="small"
@@ -1209,6 +1246,7 @@ onUnmounted(() => {
 // ============================================
 .operation-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   justify-content: flex-end;
   align-items: center;
