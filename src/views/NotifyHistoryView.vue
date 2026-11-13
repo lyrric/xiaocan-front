@@ -29,6 +29,7 @@ const notifyTypeOptions = [
   { label: '指定门店', value: 'STORE_ACTIVITY' },
   { label: '最小实付', value: 'MINIMUM_PAY' },
   { label: '关键字', value: 'STORE_KEYWORD' },
+  { label: '同名门店活动', value: 'SAME_NAME_STORE_ACTIVITY' },
 ]
 
 let scrollObserver: IntersectionObserver | null = null
@@ -172,6 +173,7 @@ function getNotifyTypeName(notifyType: string) {
   const types: Record<string, string> = {
     STORE_ACTIVITY: '指定门店',
     MINIMUM_PAY: '最小实付',
+    SAME_NAME_STORE_ACTIVITY: '同名门店活动',
   }
   return types[notifyType] || '未知'
 }
@@ -180,6 +182,7 @@ function getNotifyTypeClass(notifyType: string) {
   const classes: Record<string, string> = {
     STORE_ACTIVITY: 'type-tag type-store',
     MINIMUM_PAY: 'type-tag type-pay',
+    SAME_NAME_STORE_ACTIVITY: 'type-tag type-store',
   }
   return classes[notifyType] || 'type-tag'
 }

@@ -22,6 +22,8 @@ const authState = inject<{
 }>('authState')!
 
 const loading = ref(false)
+const hasSearched = ref(false)
+let listRequestVersion = 0
 const actionLoading = reactive<Record<string, boolean>>({})
 
 // 搜索历史（最近5条不重复）
@@ -46,7 +48,7 @@ function clearSearchHistory() {
 function applySearchHistory(keyword: string) {
   currentSearchName.value = keyword
   searchInputFocused.value = false
-  handleSearch()
+  resetSearchResults()
 }
 
 function onSearchInputBlur() {
@@ -58,9 +60,7 @@ function onSearchInputBlur() {
 
 // Tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorite'
 const activeTab = ref<'xiaochan' | 'meituan' | 'waimai' | 'favorite'>('xiaochan')
-const xiaochanHasSearched = ref(false)
 const homeNavigationVersion = inject<Readonly<Ref<number>>>('homeNavigationVersion')!
-let listRequestVersion = 0
 
 const searchForm = reactive({
   name: '',
@@ -82,10 +82,13 @@ const pagination = reactive({
 // 美团赏金专用状态
 const meituanSearchForm = reactive({
   name: '',
+  cityCode: null as number | null,
   latitude: '',
   longitude: '',
   locationId: null as number | null,
   pvId: '',
+  pageNum: 1,
+  pageSize: 20,
 })
 const meituanHasNextPage = ref(true)
 const meituanIsLoadingMore = ref(false)
@@ -362,19 +365,22 @@ async function fetchMeituanList(resetPage = true) {
   const requestVersion = ++listRequestVersion
   if (resetPage) {
     meituanSearchForm.pvId = ''
+    meituanSearchForm.pageNum = 1
     meituanHasNextPage.value = true
     storeList.value = []
   }
 
   // 同步地址坐标
+  meituanSearchForm.cityCode = searchForm.cityCode
   meituanSearchForm.latitude = searchForm.latitude
   meituanSearchForm.longitude = searchForm.longitude
   meituanSearchForm.locationId = searchForm.locationId
 
   loading.value = resetPage
 
+  const pageNum = resetPage ? 1 : meituanSearchForm.pageNum + 1
   try {
-    const response = await api.post('/api/xiaochan/mtsj', meituanSearchForm)
+    const response = await api.post('/api/xiaochan/mtsj', { ...meituanSearchForm, pageNum })
     if (requestVersion !== listRequestVersion) return
     if (response.data.success) {
       loadError.value = false
@@ -386,6 +392,7 @@ async function fetchMeituanList(resetPage = true) {
         storeList.value = [...storeList.value, ...newItems]
       }
       // 更新游标
+      meituanSearchForm.pageNum = pageNum
       meituanSearchForm.pvId = data.pagePvId || ''
       // pagePvId 为空或无数据时视为无下一页
       meituanHasNextPage.value = !!(data.pagePvId && newItems.length > 0)
@@ -599,12 +606,8 @@ function getStoreTypeName(storeType: string) {
   return storeType
 }
 
-async function handleSearch(resetPage = true, manualSearch = false) {
-  // 小蚕满减只由搜索按钮（或键盘搜索）发起首屏查询。
-  if (activeTab.value === 'xiaochan') {
-    if (!manualSearch) return
-    xiaochanHasSearched.value = true
-  }
+async function handleSearch(resetPage = true) {
+  hasSearched.value = true
   if (resetPage) {
     loadError.value = false
     addToSearchHistory(currentSearchName.value)
@@ -622,36 +625,35 @@ async function handleSearch(resetPage = true, manualSearch = false) {
   }
 }
 
-async function handleTabChange(tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorite') {
+function resetSearchResults() {
+  // 作废上一次搜索，避免旧请求覆盖等待搜索的提示。
   listRequestVersion++
-  activeTab.value = tab
-  xiaochanHasSearched.value = false
+  hasSearched.value = false
   loading.value = false
-  pagination.isLoadingMore = false
-  meituanIsLoadingMore.value = false
-  waimaiIsLoadingMore.value = false
   loadError.value = false
   storeList.value = []
-  pagination.hasNextPage = tab !== 'xiaochan'
-  meituanHasNextPage.value = true
-  waimaiHasNextPage.value = true
-  if (tab === 'favorite') {
-    meituanHasNextPage.value = false
-    waimaiHasNextPage.value = false
-    favoriteSearchForm.pageNum = 1
-    pagination.currentPage = 1
-  }
-  if (tab !== 'xiaochan') {
-    await handleSearch(true)
-  }
+  pagination.hasNextPage = false
+  pagination.isLoadingMore = false
+  pagination.currentPage = 1
+  searchForm.pageNum = 1
+  favoriteSearchForm.pageNum = 1
+  meituanSearchForm.pageNum = 1
+  meituanSearchForm.pvId = ''
+  meituanHasNextPage.value = false
+  meituanIsLoadingMore.value = false
+  waimaiHasNextPage.value = false
+  waimaiIsLoadingMore.value = false
+  scrollObserver?.disconnect()
 }
 
-watch(homeNavigationVersion, () => handleTabChange('xiaochan'))
-onActivated(() => handleTabChange('xiaochan'))
+function handleTabChange(tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorite') {
+  activeTab.value = tab
+  resetSearchResults()
+}
 
 function handleSort(orderType: number) {
   searchForm.orderType = orderType
-  handleSearch()
+  resetSearchResults()
 }
 
 function initScrollObserver() {
@@ -700,7 +702,7 @@ function reinitScrollObserver() {
 }
 
 async function loadNextPage() {
-  if (activeTab.value === 'xiaochan' && !xiaochanHasSearched.value) return
+  if (!hasSearched.value) return
   if (loadError.value) return
   if (activeTab.value === 'meituan') {
     if (!meituanHasNextPage.value || meituanIsLoadingMore.value || loading.value) return
@@ -731,6 +733,8 @@ function retryLoadMore() {
 }
 
 async function refreshCurrentPageData() {
+  if (!hasSearched.value) return
+  const requestVersion = ++listRequestVersion
   const originalPageNum = searchForm.pageNum
   const originalCurrentPage = pagination.currentPage
 
@@ -739,6 +743,7 @@ async function refreshCurrentPageData() {
     for (let page = 1; page <= originalCurrentPage; page++) {
       searchForm.pageNum = page
       const pageResponse = await api.post('/api/xiaochan/query', searchForm)
+      if (requestVersion !== listRequestVersion) return
       if (pageResponse.data.success && pageResponse.data.data) {
         const pageData = pageResponse.data.data
         allData = [...allData, ...pageData]
@@ -758,10 +763,13 @@ async function refreshCurrentPageData() {
       reinitScrollObserver()
     })
   } catch {
+    if (requestVersion !== listRequestVersion) return
     ElMessage.error('刷新数据失败，请稍后重试')
   } finally {
-    searchForm.pageNum = originalPageNum
-    pagination.currentPage = originalCurrentPage
+    if (requestVersion === listRequestVersion) {
+      searchForm.pageNum = originalPageNum
+      pagination.currentPage = originalCurrentPage
+    }
   }
 }
 
@@ -949,7 +957,7 @@ async function handleAddressChange(selAddressId: string) {
       searchForm.longitude = addr.longitude
       searchForm.locationId = parseInt(addr.id)
       saveSelectedAddressId(selAddressId)
-      await handleSearch()
+      resetSearchResults()
     }
   } else {
     selectedAddress.value = null
@@ -958,6 +966,7 @@ async function handleAddressChange(selAddressId: string) {
     searchForm.longitude = ''
     searchForm.locationId = null
     localStorage.removeItem('selectedAddressId')
+    resetSearchResults()
   }
 }
 
@@ -990,7 +999,6 @@ async function loadDefaultAddress() {
           searchForm.latitude = foundAddress.latitude
           searchForm.longitude = foundAddress.longitude
           searchForm.locationId = parseInt(foundAddress.id)
-          handleSearch()
           return
         } else {
           localStorage.removeItem('selectedAddressId')
@@ -1005,7 +1013,6 @@ async function loadDefaultAddress() {
       searchForm.longitude = firstAddress.longitude
       searchForm.locationId = parseInt(firstAddress.id)
       saveSelectedAddressId(firstAddress.id)
-      handleSearch()
     } else {
       showCreateAddressPrompt()
     }
@@ -1026,7 +1033,6 @@ function showCreateAddressPrompt() {
     })
     .catch(() => {
       searchForm.cityCode = defaultCityCode
-      handleSearch()
     })
 }
 
@@ -1187,6 +1193,12 @@ function loadSavedAddress() {
   }
 }
 
+watch(homeNavigationVersion, () => handleTabChange('xiaochan'))
+
+onActivated(() => {
+  handleTabChange('xiaochan')
+})
+
 onMounted(async () => {
   // 等待认证完成
   await authState?.waitForAuth()
@@ -1247,7 +1259,7 @@ onBeforeUnmount(() => {
           v-if="activeTab === 'xiaochan'"
           class="filter-toggle"
           :class="{ active: searchForm.onlyAvailable }"
-          @click="searchForm.onlyAvailable = !searchForm.onlyAvailable; handleSearch()"
+          @click="searchForm.onlyAvailable = !searchForm.onlyAvailable; resetSearchResults()"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
@@ -1270,14 +1282,14 @@ onBeforeUnmount(() => {
           enterkeyhint="search"
           @focus="searchInputFocused = true"
           @blur="onSearchInputBlur"
-          @keyup.enter="handleSearch(true, true)"
+          @keyup.enter="handleSearch()"
         />
-        <div v-if="currentSearchName" class="search-clear" @click="currentSearchName = ''; handleSearch()">
+        <div v-if="currentSearchName" class="search-clear" @click="currentSearchName = ''; resetSearchResults()">
           <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
             <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/>
           </svg>
         </div>
-        <div class="search-btn" @click="handleSearch(true, true)">
+        <div class="search-btn" @click="handleSearch()">
           搜索
         </div>
       </div>
@@ -1377,8 +1389,8 @@ onBeforeUnmount(() => {
 
     <!-- Content area -->
     <div class="content">
-      <div v-if="activeTab === 'xiaochan' && !xiaochanHasSearched" class="empty-state">
-        <p class="empty-desc">请点击搜索按钮搜索活动门店</p>
+      <div v-if="!hasSearched" class="empty-state">
+        <p class="empty-desc">请点击搜索按钮获取活动信息</p>
       </div>
 
       <!-- Loading state -->

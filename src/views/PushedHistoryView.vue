@@ -22,12 +22,20 @@ function isFavorite(store: any) {
   return !!store.favoriteId
 }
 
-// 按 type + uniqId 聚合（同 HomeView 的 groupedStoreList）
+// 优先识别同名门店类型，兼容旧批次沿用最小实付类型的数据。
+const isSameNamePush = computed(() => storeList.value.some(
+  (store) => store.notifyType === 'SAME_NAME_STORE_ACTIVITY'
+    || (store.notifyType === 'MINIMUM_PAY' && store.storeTypeEnum === 'XC_MTSJ'),
+))
+
+// 同名门店推送按位置、平台和名称聚合，使满减与赏金展示在同一卡片中。
 const groupedStoreList = computed(() => {
   const groupMap = new Map<string, any>()
   const groups: any[] = []
   for (const store of storeList.value) {
-    const key = `${store.type || ''}_${store.uniqId || String(store.promotionId || store.storeId || Math.random())}`
+    const key = isSameNamePush.value
+      ? JSON.stringify([store.locationId, store.type, store.name])
+      : `${store.type || ''}_${store.uniqId || String(store.promotionId || store.storeId || Math.random())}`
     let group = groupMap.get(key)
     if (!group) {
       group = {
@@ -236,7 +244,7 @@ onMounted(() => {
                 <div class="store-meta-left">
                   <span class="distance-tag">{{ group.primary.distanceStr }}</span>
                   <span :class="getPlatformClass(group.primary.type)" class="badge">{{ getPlatformName(group.primary.type) }}</span>
-                  <span v-if="group.primary.storeTypeEnum" class="badge store-type-badge">{{ getStoreTypeName(group.primary.storeTypeEnum) }}</span>
+                  <span v-if="!isSameNamePush && group.primary.storeTypeEnum" class="badge store-type-badge">{{ getStoreTypeName(group.primary.storeTypeEnum) }}</span>
                 </div>
                 <span v-if="group.primary.locationName" class="location-name" :title="group.primary.locationName">{{ group.primary.locationName }}</span>
               </div>
@@ -244,10 +252,10 @@ onMounted(() => {
           </div>
 
           <!-- Activity list -->
-          <div class="activity-list" :class="{ 'single-activity': group.activities.length === 1 }">
+          <div class="activity-list" :class="{ 'single-activity': group.activities.length === 1, 'same-name-activities': isSameNamePush }">
             <div
-              v-for="activity in group.activities"
-              :key="activity.promotionId"
+              v-for="(activity, activityIndex) in group.activities"
+              :key="`${activity.storeTypeEnum}_${activity.promotionId}_${activityIndex}`"
               class="activity-row"
             >
               <div class="activity-info">
@@ -258,7 +266,8 @@ onMounted(() => {
                   返<em class="rebate">{{ activity.rebateRatio }}%</em>&nbsp;最高<em>{{ activity.rebateMax }}</em>元
                 </span>
                 <div class="activity-tags">
-                  <span class="info-chip">{{ activity.startTime }}-{{ activity.endTime }}</span>
+                  <span v-if="isSameNamePush" class="info-chip">{{ getStoreTypeName(activity.storeTypeEnum) }}</span>
+                  <span v-if="activity.storeTypeEnum === 'XC_MANJIAN' || activity.storeTypeEnum === 'WM_MANJIAN'" class="info-chip">{{ activity.startTime }}-{{ activity.endTime }}</span>
                   <span v-if="activity.rebateConditionStr" class="info-chip">{{ activity.rebateConditionStr }}</span>
                   <span
                     class="info-chip"
@@ -622,6 +631,24 @@ $radius-full: 999px;
   &.single-activity {
     .activity-row {
       padding: 10px 0 0;
+    }
+  }
+
+  &.same-name-activities {
+    // 活动规则和标签保持同一行，窄屏可横向查看完整信息。
+    .activity-info {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+    }
+
+    .price-tag {
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .activity-tags {
+      flex-shrink: 0;
+      flex-wrap: nowrap;
     }
   }
 }
