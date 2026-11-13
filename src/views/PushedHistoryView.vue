@@ -22,9 +22,10 @@ function isFavorite(store: any) {
   return !!store.favoriteId
 }
 
-// 最小实付批次包含小蚕赏金时，表示同名门店手动推送。
+// 优先识别同名门店类型，兼容旧批次沿用最小实付类型的数据。
 const isSameNamePush = computed(() => storeList.value.some(
-  (store) => store.notifyType === 'MINIMUM_PAY' && store.storeTypeEnum === 'XC_MTSJ',
+  (store) => store.notifyType === 'SAME_NAME_STORE_ACTIVITY'
+    || (store.notifyType === 'MINIMUM_PAY' && store.storeTypeEnum === 'XC_MTSJ'),
 ))
 
 // 同名门店推送按位置、平台和名称聚合，使满减与赏金展示在同一卡片中。
