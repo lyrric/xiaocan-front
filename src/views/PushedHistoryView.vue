@@ -266,7 +266,7 @@ onMounted(() => {
                 </span>
                 <div class="activity-tags">
                   <span v-if="isSameNamePush" class="info-chip">{{ getStoreTypeName(activity.storeTypeEnum) }}</span>
-                  <span class="info-chip">{{ activity.startTime }}-{{ activity.endTime }}</span>
+                  <span v-if="activity.storeTypeEnum === 'XC_MANJIAN' || activity.storeTypeEnum === 'WM_MANJIAN'" class="info-chip">{{ activity.startTime }}-{{ activity.endTime }}</span>
                   <span v-if="activity.rebateConditionStr" class="info-chip">{{ activity.rebateConditionStr }}</span>
                   <span
                     class="info-chip"
