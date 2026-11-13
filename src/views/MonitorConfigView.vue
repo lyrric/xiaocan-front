@@ -277,7 +277,7 @@ async function pushSameNameStores(config: any) {
     if (response.data.success) {
       const count = response.data.data || 0
       if (count > 0) {
-        ElMessage.success(`已推送 ${count} 条同名门店活动`)
+        ElMessage.success(`已推送 ${count} 家同名门店活动`)
       } else {
         ElMessage.info('未找到同名门店活动')
       }

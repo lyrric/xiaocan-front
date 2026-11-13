@@ -251,7 +251,7 @@ onMounted(() => {
           </div>
 
           <!-- Activity list -->
-          <div class="activity-list" :class="{ 'single-activity': group.activities.length === 1 }">
+          <div class="activity-list" :class="{ 'single-activity': group.activities.length === 1, 'same-name-activities': isSameNamePush }">
             <div
               v-for="(activity, activityIndex) in group.activities"
               :key="`${activity.storeTypeEnum}_${activity.promotionId}_${activityIndex}`"
@@ -630,6 +630,24 @@ $radius-full: 999px;
   &.single-activity {
     .activity-row {
       padding: 10px 0 0;
+    }
+  }
+
+  &.same-name-activities {
+    // 活动规则和标签保持同一行，窄屏可横向查看完整信息。
+    .activity-info {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+    }
+
+    .price-tag {
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .activity-tags {
+      flex-shrink: 0;
+      flex-wrap: nowrap;
     }
   }
 }
