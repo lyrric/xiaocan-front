@@ -646,9 +646,12 @@ function resetSearchResults() {
   scrollObserver?.disconnect()
 }
 
-function handleTabChange(tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorite') {
+async function handleTabChange(tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorite') {
   activeTab.value = tab
   resetSearchResults()
+  if (tab !== 'xiaochan') {
+    await handleSearch()
+  }
 }
 
 function handleSort(orderType: number) {

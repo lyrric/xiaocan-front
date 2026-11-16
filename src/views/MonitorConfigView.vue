@@ -268,6 +268,20 @@ async function loadConfigList() {
 
 async function pushSameNameStores(config: any) {
   if (pushingConfigIds.has(config.id)) return
+  try {
+    await ElMessageBox.confirm(
+      '会同时获取美团满减和美团比例返的门店，推送名称相同的门店信息，请勿频繁执行。',
+      '提示',
+      {
+        confirmButtonText: '确认',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+  } catch {
+    return
+  }
+  if (pushingConfigIds.has(config.id)) return
   pushingConfigIds.add(config.id)
   try {
     const response = await api.post('/api/notify/config/push-same-name', undefined, {
@@ -275,12 +289,13 @@ async function pushSameNameStores(config: any) {
       timeout: 300000,
     })
     if (response.data.success) {
-      const count = response.data.data || 0
-      if (count > 0) {
-        ElMessage.success(`已推送 ${count} 家同名门店活动`)
-      } else {
-        ElMessage.info('未找到同名门店活动')
-      }
+      const { manjianStoreCount, rebateStoreCount, pushedStoreCount } = response.data.data
+      ElMessage({
+        message: `获取美团满减门店 ${manjianStoreCount} 家，美团比例返门店 ${rebateStoreCount} 家，推送门店 ${pushedStoreCount} 家。`,
+        type: pushedStoreCount > 0 ? 'success' : 'info',
+        duration: 6000,
+        showClose: true,
+      })
     } else {
       ElMessage.error(response.data.msg || '同名门店推送失败')
     }
