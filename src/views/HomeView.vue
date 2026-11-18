@@ -1753,6 +1753,15 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+
+    <el-backtop class="back-to-top" :visibility-height="600" :right="24" :bottom="24">
+      <button class="back-to-top-button" type="button" aria-label="回到顶部" title="回到顶部">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 4h14M12 20V8m-6 6 6-6 6 6" />
+        </svg>
+        <span>顶部</span>
+      </button>
+    </el-backtop>
   </div>
 </template>
 
@@ -1783,6 +1792,43 @@ $radius-full: 999px;
   padding-bottom: calc(20px + env(safe-area-inset-bottom));
   overflow-x: hidden;
   max-width: 100%;
+}
+
+.back-to-top {
+  width: 52px;
+  height: 52px;
+  margin-right: env(safe-area-inset-right, 0px);
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+  color: $primary;
+  background: $card-bg;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+
+  &:hover {
+    background: $primary-light;
+  }
+}
+
+.back-to-top-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  &:focus-visible {
+    outline: 2px solid $primary;
+    outline-offset: 3px;
+  }
 }
 
 // ============================================
