@@ -647,9 +647,7 @@ function resetSearchResults() {
 async function handleTabChange(tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorite') {
   activeTab.value = tab
   resetSearchResults()
-  if (tab !== 'xiaochan') {
-    await handleSearch()
-  }
+  await handleSearch()
 }
 
 function handleSort(orderType: number) {
@@ -959,6 +957,7 @@ async function handleAddressChange(selAddressId: string) {
       searchForm.locationId = parseInt(addr.id)
       saveSelectedAddressId(selAddressId)
       resetSearchResults()
+      await handleSearch()
     }
   } else {
     selectedAddress.value = null
@@ -968,6 +967,7 @@ async function handleAddressChange(selAddressId: string) {
     searchForm.locationId = null
     localStorage.removeItem('selectedAddressId')
     resetSearchResults()
+    await handleSearch()
   }
 }
 
@@ -1195,7 +1195,9 @@ function loadSavedAddress() {
 }
 
 onActivated(() => {
-  handleTabChange('xiaochan')
+  // 进入首页时只重置到小蚕满减，等待用户主动搜索。
+  activeTab.value = 'xiaochan'
+  resetSearchResults()
 })
 
 onMounted(async () => {
