@@ -73,6 +73,10 @@ const searchForm = reactive({
   pageNum: 1,
   pageSize: 30,
 })
+const filtersExpanded = ref(false)
+const selectedFilterCount = computed(() =>
+  searchForm.storePlatforms.length + searchForm.storeSubCategories.length + Number(searchForm.onlyAvailable)
+)
 const platformFilters = [{ label: '美团', value: 'MEITUAN' }, { label: '淘宝', value: 'ELEME' }, { label: '京东', value: 'JD' }]
 const categoryFilters = [{ label: '小吃', value: 4 }, { label: '饮品', value: 10 }, { label: '面包甜点', value: 3 }]
 function toggleFilter<T>(values: T[], value: T) {
@@ -1307,22 +1311,48 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div v-if="activeTab === 'xiaochan'" class="xiaochan-filters">
-        <div class="filter-options" role="group" aria-label="平台筛选">
-          <button v-for="item in platformFilters" :key="item.value" type="button" class="chip"
-            :class="{ active: searchForm.storePlatforms.includes(item.value) }"
-            :aria-pressed="searchForm.storePlatforms.includes(item.value)"
-            @click="toggleFilter(searchForm.storePlatforms, item.value)">{{ item.label }}</button>
-        </div>
-        <div class="filter-options" role="group" aria-label="品类筛选">
-          <button v-for="item in categoryFilters" :key="item.value" type="button" class="chip"
-            :class="{ active: searchForm.storeSubCategories.includes(item.value) }"
-            :aria-pressed="searchForm.storeSubCategories.includes(item.value)"
-            @click="toggleFilter(searchForm.storeSubCategories, item.value)">{{ item.label }}</button>
-        </div>
-        <div class="available-switch">
-          <span>只看可抢</span>
-          <el-switch v-model="searchForm.onlyAvailable" aria-label="只看可抢" @change="resetSearchResults()" />
+      <div v-if="activeTab === 'xiaochan'" class="filter-section" :class="{ expanded: filtersExpanded }">
+        <button type="button" class="filter-expand-button"
+          :aria-expanded="filtersExpanded" aria-controls="xiaochan-filter-panel"
+          @click="filtersExpanded = !filtersExpanded">
+          <span class="filter-heading">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="white"/><circle cx="15" cy="17" r="3" fill="white"/>
+            </svg>
+            <span>筛选</span>
+            <span v-if="selectedFilterCount" class="filter-count">已选 {{ selectedFilterCount }}</span>
+          </span>
+          <span class="filter-expand-label">{{ filtersExpanded ? '收起' : '展开' }}
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+          </span>
+        </button>
+        <div v-show="filtersExpanded" id="xiaochan-filter-panel" class="xiaochan-filters">
+          <div class="filter-row">
+            <span class="filter-row-label">平台</span>
+            <div class="filter-options" role="group" aria-label="平台筛选">
+              <button v-for="item in platformFilters" :key="item.value" type="button" class="filter-chip"
+                :class="{ active: searchForm.storePlatforms.includes(item.value) }"
+                :aria-pressed="searchForm.storePlatforms.includes(item.value)"
+                @click="toggleFilter(searchForm.storePlatforms, item.value)">
+                {{ item.label }}<span class="filter-check" aria-hidden="true">✓</span>
+              </button>
+            </div>
+          </div>
+          <div class="filter-row">
+            <span class="filter-row-label">品类</span>
+            <div class="filter-options" role="group" aria-label="品类筛选">
+              <button v-for="item in categoryFilters" :key="item.value" type="button" class="filter-chip"
+                :class="{ active: searchForm.storeSubCategories.includes(item.value) }"
+                :aria-pressed="searchForm.storeSubCategories.includes(item.value)"
+                @click="toggleFilter(searchForm.storeSubCategories, item.value)">
+                {{ item.label }}<span class="filter-check" aria-hidden="true">✓</span>
+              </button>
+            </div>
+          </div>
+          <div class="available-switch" :class="{ active: searchForm.onlyAvailable }">
+            <span class="available-label"><span class="available-dot" aria-hidden="true"></span>只看可抢</span>
+            <el-switch v-model="searchForm.onlyAvailable" aria-label="只看可抢" @change="resetSearchResults()" />
+          </div>
         </div>
       </div>
     </div>
@@ -2089,16 +2119,107 @@ $radius-full: 999px;
 // ============================================
 // Sort chips
 // ============================================
-.xiaochan-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 16px;
+.filter-section {
   margin-top: 12px;
+  border: 1px solid #edf0ed;
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+  &.expanded { box-shadow: 0 4px 16px rgba(30, 60, 40, 0.04); }
 }
-.filter-options { display: flex; gap: 8px; }
-.filter-options .chip { border: 0; font-family: inherit; }
-.available-switch { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.filter-expand-button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  color: $text-secondary;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  &:focus-visible { outline: 2px solid $primary; outline-offset: -3px; }
+}
+.filter-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  svg { width: 17px; height: 17px; color: $primary; }
+}
+.filter-count {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba($primary, 0.09);
+  color: $primary;
+  font-size: 11px;
+  font-weight: 500;
+}
+.filter-expand-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #909890;
+  font-size: 12px;
+  svg { width: 14px; height: 14px; transition: transform 0.2s; }
+  .expanded & svg { transform: rotate(180deg); }
+}
+.xiaochan-filters { padding: 4px 14px 12px; }
+.filter-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.filter-row-label {
+  flex-shrink: 0;
+  line-height: 34px;
+  color: #929992;
+  font-size: 12px;
+}
+.filter-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 6px 11px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: #f5f7f5;
+  color: $text-secondary;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+  -webkit-tap-highlight-color: transparent;
+  .filter-check { visibility: hidden; font-size: 11px; }
+  &.active {
+    border-color: rgba($primary, 0.3);
+    background: rgba($primary, 0.09);
+    color: $primary;
+    font-weight: 600;
+    .filter-check { visibility: visible; }
+  }
+  &:focus-visible { outline: 2px solid $primary; outline-offset: 2px; }
+  &:active { transform: scale(0.97); }
+}
+.available-switch {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px solid #f0f2f0;
+  font-size: 13px;
+  color: $text-secondary;
+  --el-switch-on-color: #{$primary};
+  &.active .available-dot { background: $primary; box-shadow: 0 0 0 3px rgba($primary, 0.1); }
+}
+.available-label { display: flex; align-items: center; gap: 8px; }
+.available-dot { width: 6px; height: 6px; border-radius: 50%; background: #c9cfca; transition: background 0.2s; }
 
 .sort-chips {
   display: flex;
