@@ -68,9 +68,20 @@ const searchForm = reactive({
   longitude: '',
   locationId: null as number | null,
   onlyAvailable: false,
+  storePlatforms: [] as string[],
+  storeSubCategories: [] as number[],
   pageNum: 1,
   pageSize: 30,
 })
+const platformFilters = [{ label: '美团', value: 'MEITUAN' }, { label: '淘宝', value: 'ELEME' }, { label: '京东', value: 'JD' }]
+const categoryFilters = [{ label: '小吃', value: 4 }, { label: '饮品', value: 10 }, { label: '面包甜点', value: 3 }]
+function toggleFilter<T>(values: T[], value: T) {
+  const index = values.indexOf(value)
+  if (index === -1) values.push(value)
+  else values.splice(index, 1)
+  resetSearchResults()
+}
+
 const pagination = reactive({
   currentPage: 1,
   hasNextPage: false,
@@ -648,11 +659,6 @@ async function handleTabChange(tab: 'xiaochan' | 'meituan' | 'waimai' | 'favorit
   activeTab.value = tab
   resetSearchResults()
   await handleSearch()
-}
-
-function handleSort(orderType: number) {
-  searchForm.orderType = orderType
-  resetSearchResults()
 }
 
 function initScrollObserver() {
@@ -1256,17 +1262,7 @@ onBeforeUnmount(() => {
             <polyline points="6 9 12 15 18 9"/>
           </svg>
         </div>
-        <div
-          v-if="activeTab === 'xiaochan'"
-          class="filter-toggle"
-          :class="{ active: searchForm.onlyAvailable }"
-          @click="searchForm.onlyAvailable = !searchForm.onlyAvailable; resetSearchResults()"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
-          </svg>
-          <span>{{ searchForm.onlyAvailable ? '可抢' : '全部' }}</span>
-        </div>
+
       </div>
 
       <!-- Search input - capsule style -->
@@ -1311,23 +1307,23 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Sort chips - horizontal scroll（仅小蚕满减显示） -->
-      <div v-if="false" class="sort-chips">
-        <div
-          class="chip"
-          :class="{ active: searchForm.orderType === 1 }"
-          @click="handleSort(1)"
-        >默认排序</div>
-        <div
-          class="chip"
-          :class="{ active: searchForm.orderType === 2 }"
-          @click="handleSort(2)"
-        >返现金额</div>
-        <div
-          class="chip"
-          :class="{ active: searchForm.orderType === 3 }"
-          @click="handleSort(3)"
-        >返现比例</div>
+      <div v-if="activeTab === 'xiaochan'" class="xiaochan-filters">
+        <div class="filter-options" role="group" aria-label="平台筛选">
+          <button v-for="item in platformFilters" :key="item.value" type="button" class="chip"
+            :class="{ active: searchForm.storePlatforms.includes(item.value) }"
+            :aria-pressed="searchForm.storePlatforms.includes(item.value)"
+            @click="toggleFilter(searchForm.storePlatforms, item.value)">{{ item.label }}</button>
+        </div>
+        <div class="filter-options" role="group" aria-label="品类筛选">
+          <button v-for="item in categoryFilters" :key="item.value" type="button" class="chip"
+            :class="{ active: searchForm.storeSubCategories.includes(item.value) }"
+            :aria-pressed="searchForm.storeSubCategories.includes(item.value)"
+            @click="toggleFilter(searchForm.storeSubCategories, item.value)">{{ item.label }}</button>
+        </div>
+        <div class="available-switch">
+          <span>只看可抢</span>
+          <el-switch v-model="searchForm.onlyAvailable" aria-label="只看可抢" @change="resetSearchResults()" />
+        </div>
       </div>
     </div>
 
@@ -2093,6 +2089,17 @@ $radius-full: 999px;
 // ============================================
 // Sort chips
 // ============================================
+.xiaochan-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 12px;
+}
+.filter-options { display: flex; gap: 8px; }
+.filter-options .chip { border: 0; font-family: inherit; }
+.available-switch { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+
 .sort-chips {
   display: flex;
   gap: 8px;
